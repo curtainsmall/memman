@@ -1,0 +1,10 @@
+add_executable(memman_test "main.c")
+target_compile_features(memman_test PRIVATE c_std_99)
+target_link_libraries(memman_test PRIVATE memman)
+set_target_properties(memman_test PROPERTIES FOLDER "memman")
+source_group(TREE "${CMAKE_SOURCE_DIR}" FILES "main.c")
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+  add_compile_options("/MP")
+  set_property(DIRECTORY "${CMAKE_SOURCE_DIR}" PROPERTY VS_STARTUP_PROJECT memman_test)
+endif()
