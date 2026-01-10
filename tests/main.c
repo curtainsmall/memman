@@ -16,6 +16,17 @@ int main()
         {.i = 1, .f = 42}
     };
 
+    void* p = NULL;
+    mem_init(&p);
+
+    printf("Size of memory: %zu\n", mem_size(p));
+    mem_extend(&p, -200);
+    mem_extend(&p, 200);
+    printf("Size of memory: %zu\n", mem_size(p));
+
+    mem_drop(&p);
+
+#if 0
     m3_buf_tt(struct test_struct) ts = { 0 };
     m3_buf_init(&ts, sizeof(struct test_struct));
 
@@ -29,6 +40,7 @@ int main()
     m3_buf_erase_back_n(&ts, 2);
 
     m3_buf_drop(&ts);
+#endif
 
     return 0;
 }
