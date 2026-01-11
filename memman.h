@@ -144,7 +144,7 @@ static void makemem(void** p_ptr, size_t new_size)
 {
     assert(p_ptr);
 
-    size_t* p = *p_ptr;
+    uint8_t* p = *p_ptr;
     size_t old_size = 0;
     if(p)
     {
