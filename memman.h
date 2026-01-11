@@ -9,24 +9,30 @@
 
 #include <stdint.h>
 
+/// @addtogroup memgroup
+/// Function family for raw memory manupulation
+
+/// @{
+/// @brief A help marker which represents that this variable is allocated with @ref mem_init and thus must be freed with @ref mem_drop
+/// You can just use raw pointer type if you want
 #define mem_tt(Type) Type*
 
-typedef enum memflag
-{
-    /// @brief Empty flag
-    MEMFLAG_NONE = 0,
+/// @brief Error callback type
+/// @sa @ref mem_set_err_callback
+typedef void (*mem_err_callback_t)(void*);
 
-    /// @brief Do not zero-init allocated memory
-    MEMFLAG_NO_ZERO_INIT,
-} memflag_t;
+/// @brief Set the error callback
+/// @param[in] err_callback
+/// @param[in] userdata
+MEMMAN_API void mem_set_err_callback(mem_err_callback_t err_callback, void* userdata);
 
 /// @brief Init memory
-/// @param[in,out] p_ptr Reference to the memory
+/// @param[in,out] p_ptr Reference to a pointer for the memory
 MEMMAN_API void mem_init(void** p_ptr);
 
 /// @brief Drop decorated memory
 /// @param[in] p_ptr Reference to the memory
-MEMMAN_API void  mem_drop(void** p_ptr);
+MEMMAN_API void mem_drop(void** p_ptr);
 
 /// @brief Size of the memory
 /// @param[in] ptr Memory
@@ -57,14 +63,19 @@ MEMMAN_API void mem_copy(void** p_dst, size_t dst_idx, const void* src, size_t s
 /// @param[in] size Size of shifted memory
 MEMMAN_API void mem_shift(void** p_ptr, size_t dst_idx, size_t src_idx, size_t size);
 
-/// @brief Error call type
-/// @sa mem_set_err_callback
-typedef void (*mem_err_callback_t)(void*);
+/// @brief Make formatted string to memory
+/// @param[in,out] p_ptr Reference to the memory
+/// @param[in] fmt Format
+/// @param[in] ... Arguments
+MEMMAN_API void mem_make_str(void** p_ptr, const char* fmt, ...);
 
-/// @brief Set the error callback
-/// @param[in] err_callback
-/// @param[in] userdata
-MEMMAN_API void mem_set_err_callback(mem_err_callback_t err_callback, void* userdata);
+/// @brief Make formatted string to memory
+/// @param[in,out] p_ptr Reference to the memory
+/// @param[in] fmt Format
+/// @param[in] va Arguments
+MEMMAN_API void mem_make_str_v(void** p_ptr, const char* fmt, va_list va);
+
+/// @}
 
 #if 0
 typedef enum m3_flag
@@ -99,8 +110,6 @@ MEMMAN_API void m3_buf_erase(void** p_buf, intmax_t idx, uintmax_t count);
 MEMMAN_API void m3_buf_erase_back_n(void** p_buf, uintmax_t count);
 MEMMAN_API void m3_buf_erase_back(void** p_buf);
 
-MEMMAN_API const char* mem_make_str(const char* fmt, ...);
-MEMMAN_API const char* mem_make_str_v(const char* fmt, va_list va);
 #endif
 
 #ifdef MEMMAN_IMPLEMENT
@@ -173,6 +182,12 @@ static void makemem(void** p_ptr, size_t new_size)
     *p_ptr = p;
 }
 
+void mem_set_err_callback(mem_err_callback_t callback, void* userdata)
+{
+    err_callback.fn = callback;
+    err_callback.ud = userdata;
+}
+
 void mem_init(void** p_ptr)
 {
     assert(p_ptr);
@@ -234,10 +249,28 @@ void mem_shift(void** p_ptr, size_t dst_idx, size_t src_idx, size_t size)
     assert(p_ptr);
 }
 
-void mem_set_err_callback(mem_err_callback_t callback, void* userdata)
+void mem_make_str(void** p_ptr, const char* fmt, ...)
 {
-    err_callback.fn = callback;
-    err_callback.ud = userdata;
+    assert(p_ptr);
+
+    va_list va = { 0 };
+    va_start(va, fmt);
+    mem_make_str_v(p_ptr, fmt, va);
+    va_end(va);
+}
+
+void mem_make_str_v(void** p_ptr, const char* fmt, va_list va)
+{
+    assert(p_ptr);
+
+    va_list va_tmp;
+    va_copy(va_tmp, va);
+    int len = vsnprintf(NULL, 0, fmt, va_tmp);
+    va_end(va_tmp);
+
+    makemem(p_ptr, (len + 1) * sizeof(*fmt));
+
+    (void) vsnprintf(*p_ptr, len + 1, fmt, va);
 }
 
 #if 0
@@ -440,28 +473,6 @@ void m3_buf_erase_back(void** p_buf)
     m3_buf_erase_back_n(p_buf, 1);
 }
 
-const char* mem_make_str(const char* fmt, ...)
-{
-    va_list va = { 0 };
-    va_start(va, fmt);
-    const char* res = mem_make_str_v(fmt, va);
-    va_end(va);
-    return res;
-}
-
-const char* mem_make_str_v(const char* fmt, va_list va)
-{
-    va_list va_tmp;
-    va_copy(va_tmp, va);
-    int len = vsnprintf(NULL, 0, fmt, va_tmp);
-    va_end(va_tmp);
-
-    void* str = NULL;
-    makemem(&str, (len + 1) * sizeof(*fmt));
-
-    (void) vsnprintf(str, len + 1, fmt, va);
-    return str;
-}
 #endif
 
 #endif // MEMMAN_IMPLEMENT

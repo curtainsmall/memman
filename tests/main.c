@@ -24,6 +24,10 @@ int main()
     mem_extend(&p, 200);
     printf("Size of memory: %zu\n", mem_size(p));
 
+    mem_make_str(&p, "The address of current memory is 0x%p", p);
+    printf("%s\n", p);
+    printf("Size of memory after making string: %zu\n", mem_size(p));
+
     mem_drop(&p);
 
 #if 0
