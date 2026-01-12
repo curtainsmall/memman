@@ -9,25 +9,36 @@
 
 #include <stdint.h>
 
-/// @addtogroup memgroup
+/// @addtogroup memerr
+/// Error handling
+/// The memman library itself does not raise any runtime error. The only possible runtime error is "out of memory" which is an OS error, in which case the callback of type @ref memerr_callback_t is called. The default callback behavior is to print error message to @a stderr and call `about()`. You can set your own callback if you can recover from such situation. If you succeed to recover from the error, just return the callback and memman will try to allocate again; If you fail to recover the error, you should abort the program manully.
+/// All possible logic errors in memman are checked with @a assert in operation functions. You can and should always check before operate
+
+/// @{
+
+/// @brief Error callback type
+/// @sa @ref memerr_set_callback
+typedef void (*memerr_callback_t)(void* userdata);
+
+/// @brief Set the error callback
+/// @param[in] callback Callback function
+/// @param[in] userdata Userdata
+MEMMAN_API void memerr_set_callback(memerr_callback_t callback, void* userdata);
+
+/// @}
+
+/// @addtogroup mem
 /// Function family for raw memory manupulation
+/// All function starts with `mem_` prefix must apply to the memory initialized with @ref mem_init and be released with @ref mem_drop
 
 /// @{
 /// @brief A help marker which represents that this variable is allocated with @ref mem_init and thus must be freed with @ref mem_drop
 /// You can just use raw pointer type if you want
 #define mem_tt(Type) Type*
 
-/// @brief Error callback type
-/// @sa @ref mem_set_err_callback
-typedef void (*mem_err_callback_t)(void*);
-
-/// @brief Set the error callback
-/// @param[in] err_callback
-/// @param[in] userdata
-MEMMAN_API void mem_set_err_callback(mem_err_callback_t err_callback, void* userdata);
-
 /// @brief Init memory
 /// @param[in,out] p_ptr Reference to a pointer for the memory
+/// The `*p_ptr` must either be NULL, or a memory previously initialized with @ref mem_init
 MEMMAN_API void mem_init(void** p_ptr);
 
 /// @brief Drop decorated memory
@@ -77,40 +88,92 @@ MEMMAN_API void mem_make_str_v(void** p_ptr, const char* fmt, va_list va);
 
 /// @}
 
-#if 0
-typedef enum m3_flag
-{
-    M3_NONE = 0,
-    M3_NO_PANIC = 1 << 0,
-    M3_NO_ZERO_INIT = 1 << 1,
-} m3_flag_t;
+/// @addtogroup membuf
+/// Function family for buffer memory manupulation
+/// All function starts with `membuf_` prefix must apply to the memory initialized with @ref membuf_init and be released with @ref membuf_drop
 
-MEMMAN_API void* m3_memman(void* ptr, size_t new_size, m3_flag_t flag);
-MEMMAN_API size_t m3_memsize(void* ptr);
-#define m3_strsize(str) (m3_memsize(str) - 1)
+/// @{
 
-#define m3_alloc(size) m3_memman(NULL, size, M3_NONE)
-#define m3_realloc(ptr, size) m3_memman(ptr, size, M3_NONE)
-#define m3_free(ptr) ((void) m3_memman(ptr, 0, M3_NONE))
+/// @brief A help marker which represents that this variable is allocated with @ref membuf_init and thus must be freed with @ref mem_drop
+/// You can just use raw pointer type if you want
+#define membuf_tt(Type) Type*
 
-#define m3_memnav(ptr, Type, offset) ((Type*)(ptr) + (offset))
+/// @brief Init buffer
+/// @param[in,out] p_buf Reference to a pointer for buffer
+/// @param[in] elemsize Size of element size
+/// The `*p_ptr` must either be NULL, or a memory previously initialized with @ref membuf_init
+MEMMAN_API void membuf_init(void** p_buf, size_t elemsize);
 
-#define m3_buf_tt(Type) Type*
-MEMMAN_API void m3_buf_init(void** p_buf, size_t elemsize);
-MEMMAN_API void m3_buf_drop(void** p_buf);
-MEMMAN_API void m3_buf_clear(void** p_buf);
-MEMMAN_API size_t m3_buf_size(void* buf);
-MEMMAN_API uintmax_t m3_buf_count(void* buf);
-MEMMAN_API void m3_buf_insert_n(void** p_buf, intmax_t idx, void* val, uintmax_t count);
-MEMMAN_API void m3_buf_insert(void** p_buf, intmax_t idx, void* val, uintmax_t count);
-MEMMAN_API void m3_buf_insert_back_n(void** p_buf, void* val, uintmax_t count);
-MEMMAN_API void m3_buf_insert_back(void** p_buf, void* val);
-MEMMAN_API void m3_buf_erase_n(void** p_buf, intmax_t idx, uintmax_t count);
-MEMMAN_API void m3_buf_erase(void** p_buf, intmax_t idx, uintmax_t count);
-MEMMAN_API void m3_buf_erase_back_n(void** p_buf, uintmax_t count);
-MEMMAN_API void m3_buf_erase_back(void** p_buf);
+/// @brief Drop buffer
+/// @param[in, out] p_buf Reference to buffer
+MEMMAN_API void membuf_drop(void** p_buf);
 
-#endif
+/// @brief Clear buffer
+/// @param[in,out] p_buf Reference to buffer
+MEMMAN_API void membuf_clear(void** p_buf);
+
+/// @brief Get the size of buffer, in byte
+/// @param[in] buf Buffer
+/// @return Size
+MEMMAN_API size_t membuf_size(void* buf);
+
+/// @brief Get the count of elements in buffer
+/// @param[in] buf Buffer
+/// @return Count
+MEMMAN_API uintmax_t membuf_count(void* buf);
+
+/// @brief Insert @a count elements at @a idx
+/// @param[in,out] p_buf Reference to buffer
+/// @param[in] idx Insert index
+/// @param[in] val Pointer to values
+/// @param[in] count Count; it is caller's duty to make sure that there are at least @a count elements in @a val
+MEMMAN_API void membuf_insert_n(void** p_buf, intmax_t idx, void* val, uintmax_t count);
+
+/// @brief Insert @a 1 elements at @a idx
+/// @param[in,out] p_buf Reference to buffer
+/// @param[in] idx Insert index
+/// @param[in] val Pointer to values
+MEMMAN_API void membuf_insert(void** p_buf, intmax_t idx, void* val);
+
+/// @brief Insert @a count elements at back
+/// @param[in,out] p_buf Reference to buffer
+/// @param[in] val Pointer to values
+/// @param[in] count Count; it is caller's duty to make sure that there are at least @a count elements in @a val
+MEMMAN_API void membuf_insert_back_n(void** p_buf, void* val, uintmax_t count);
+
+/// @brief Insert @a count elements at back
+/// @param[in,out] p_buf Reference to buffer
+/// @param[in] val Pointer to values
+MEMMAN_API void membuf_insert_back(void** p_buf, void* val);
+
+/// @brief Erase @a count elements at @a idx
+/// @param[in,out] p_buf Reference to buffer
+/// @param[in] idx Erase index
+/// @param[in] count Count; should not be greater than @ref membuf_count
+MEMMAN_API void membuf_erase_n(void** p_buf, intmax_t idx, uintmax_t count);
+
+/// @brief Erase @a count elements at @a idx
+/// @param[in,out] p_buf Reference to buffer
+/// @param[in] idx Erase index
+MEMMAN_API void membuf_erase(void** p_buf, intmax_t idx);
+
+/// @brief Erase @a count elements at @a idx
+/// @param[in,out] p_buf Reference to buffer
+/// @param[in] count Count; should not be greater than @ref membuf_count
+MEMMAN_API void membuf_erase_back_n(void** p_buf, uintmax_t count);
+
+/// @brief Erase @a count elements at @a idx
+/// @param[in,out] p_buf Reference to buffer
+/// @param[in] count Count; should not be greater than @ref membuf_count
+MEMMAN_API void membuf_erase_back(void** p_buf);
+
+/// @brief Read element at @a idx
+/// @param[in,out] p_buf Reference to buffer
+/// @param[in] idx Index
+/// @return Pointer to the element, or NULL when out of range
+MEMMAN_API void* membuf_at(void** p_buf, intmax_t idx);
+
+/// @}
 
 #ifdef MEMMAN_IMPLEMENT
 
@@ -118,8 +181,8 @@ MEMMAN_API void m3_buf_erase_back(void** p_buf);
 #include <stdlib.h>
 #include <stdarg.h>
 #include <memory.h>
-#include <string.h>
 #include <inttypes.h>
+#include <string.h>
 
 #ifndef max
 #define max(a, b) ((a) > (b) ? (a) : (b))
@@ -130,19 +193,18 @@ MEMMAN_API void m3_buf_erase_back(void** p_buf);
 #endif // !min
 
 #define head(ptr) ((size_t*) (ptr) - 1)
-#define CHECK_PTR_OR_RETURN(ptr) if(!ptr) return MEMERR_MEM;
 
 static int default_err_callback(void* ud)
 {
     (void) ud;
-    fprintf(stderr, "MemMan out of memory");
+    fprintf(stderr, "[memman] Out of Memory");
     abort();
     return 0;
 }
 
 static struct
 {
-    mem_err_callback_t fn;
+    memerr_callback_t fn;
     void* ud;
 } err_callback = {
      .fn = default_err_callback,
@@ -153,36 +215,38 @@ static void makemem(void** p_ptr, size_t new_size)
 {
     assert(p_ptr);
 
-    uint8_t* p = *p_ptr;
     size_t old_size = 0;
-    if(p)
-    {
-        old_size = mem_size(p);
-        p = head(p);
-    }
-
-    if(new_size == 0)
-        free(p);
+    uint8_t* ptr = NULL;
+    if(*p_ptr)
+        ptr = head(*p_ptr);
 
     for(;;)
     {
-        size_t* tmp = realloc(p, new_size + sizeof(size_t));
+        size_t* tmp = realloc(ptr, new_size + sizeof(size_t));
         if(tmp)
         {
             *tmp = new_size;
-            p = tmp + 1;
+            ptr = tmp + 1;
             break;
         }
         err_callback.fn(err_callback.ud);
     }
 
     if(new_size > old_size)
-        (void) memset(p + old_size, 0, new_size - old_size);
+        (void) memset((uint8_t*) ptr + old_size, 0, new_size - old_size);
 
-    *p_ptr = p;
+    *p_ptr = ptr;
 }
 
-void mem_set_err_callback(mem_err_callback_t callback, void* userdata)
+static void release(void* p)
+{
+    if(!p)
+        return;
+
+    free(head(p));
+}
+
+void memerr_set_callback(memerr_callback_t callback, void* userdata)
 {
     err_callback.fn = callback;
     err_callback.ud = userdata;
@@ -192,14 +256,17 @@ void mem_init(void** p_ptr)
 {
     assert(p_ptr);
 
-    *p_ptr = (size_t*) calloc(1, sizeof(size_t)) + 1;
+    makemem(p_ptr, 0);
 }
 
 void mem_drop(void** p_ptr)
 {
     assert(p_ptr);
 
-    free(head(*p_ptr));
+    if(!*p_ptr)
+        return;
+
+    release(*p_ptr);
     *p_ptr = NULL;
 }
 
@@ -273,51 +340,6 @@ void mem_make_str_v(void** p_ptr, const char* fmt, va_list va)
     (void) vsnprintf(*p_ptr, len + 1, fmt, va);
 }
 
-#if 0
-void* m3_memman(void* ptr, size_t new_size, m3_flag_t flag)
-{
-    size_t old_size = m3_memsize(ptr);
-
-    if(old_size == new_size)
-        return ptr;
-
-    void* mem = ptr;
-    if(mem)
-        mem = m3_memnav(ptr, size_t, -1);
-
-    if(new_size == 0)
-    {
-        free(mem);
-        return NULL;
-    }
-    else
-    {
-        void* tmp = realloc(mem, new_size + sizeof(size_t));
-        if(!tmp)
-        {
-            if(flag & M3_NO_PANIC)
-                return NULL;
-
-            (void) printf(stderr, "Out of Memory");
-            abort();
-        }
-
-        *m3_memnav(tmp, size_t, 0) = new_size;
-
-        if(!(flag & M3_NO_ZERO_INIT) && new_size > old_size)
-            (void) memset(m3_memnav(m3_memnav(tmp, size_t, 1), uint8_t, old_size), 0, new_size - old_size);
-
-        return m3_memnav(tmp, size_t, 1);
-    }
-}
-
-size_t m3_memsize(void* buf)
-{
-    if(!buf)
-        return 0;
-    return *m3_memnav(buf, size_t, -1);
-}
-
 static intmax_t rel2abs(intmax_t idx, uintmax_t count)
 {
     if(idx >= 0)
@@ -326,58 +348,65 @@ static intmax_t rel2abs(intmax_t idx, uintmax_t count)
     return (idx %= count) < 0 ? idx + count : idx;
 }
 
-#define bufinfosize_v sizeof(size_t)
-#define bufsize(buf) (*m3_memnav(buf, size_t, -2))
-#define bufvaluesize(buf) (bufsize(buf) - bufinfosize_v)
-#define bufelemsize(buf) (*m3_memnav(buf, size_t, -1))
-#define bufvaluecount(buf) (bufvaluesize(buf) / bufelemsize(buf))
+#define bufinfocount_v (2)
+#define bufinfosize_v (bufinfocount_v * sizeof(size_t))
+#define bufhead(buf) ((size_t*)(buf) - 2)
+#define bufsize(buf) (mem_size(bufhead(buf)))
+#define bufelemsize(buf) (*bufhead(buf))
+#define bufvaluesize(buf) (*((size_t*)(buf) - 1))
 
-void m3_buf_init(void** p_buf, size_t elemsize)
+void membuf_init(void** p_buf, size_t elemsize)
 {
     assert(p_buf);
 
-    if(*p_buf)
-        return;
-
-    size_t* ptr = m3_alloc(bufinfosize_v);
+    size_t* ptr = NULL;
+    makemem(&ptr, bufinfosize_v);
     *ptr = elemsize;
-    *p_buf = ptr + 1;
+    *p_buf = ptr + bufinfocount_v;
 }
 
-void m3_buf_drop(void** p_buf)
+void membuf_drop(void** p_buf)
 {
     assert(p_buf);
 
     if(!*p_buf)
         return;
-    m3_free(m3_memnav(*p_buf, size_t, -1));
+
+    mem_drop(&(void*) { (size_t*) *p_buf - bufinfocount_v});
     *p_buf = NULL;
 }
 
-void m3_buf_clear(void** p_buf)
+void membuf_clear(void** p_buf)
 {
     assert(p_buf);
 
     if(!*p_buf)
         return;
-    *p_buf = m3_realloc(m3_memnav(*p_buf, size_t, -1), bufinfosize_v);
+
+    makemem(p_buf, 0);
 }
 
-size_t m3_buf_size(void* buf)
+size_t membuf_size(void* buf)
 {
-    return bufsize(buf);
+    assert(buf);
+
+    return bufvaluesize(buf);
 }
 
-uintmax_t m3_buf_count(void* buf)
+uintmax_t membuf_count(void* buf)
 {
-    return bufvaluecount(buf);
+    assert(buf);
+    assert(bufvaluesize(buf) % bufelemsize(buf) == 0);
+
+    return bufvaluesize(buf) / bufelemsize(buf);
 }
 
-void m3_buf_insert_n(void** p_buf, intmax_t idx, void* val, uintmax_t count)
+void membuf_insert_n(void** p_buf, intmax_t idx, void* val, uintmax_t count)
 {
-    assert(p_buf);
+    assert(p_buf && *p_buf);
     assert(val);
     assert(count <= INTMAX_MAX);
+    assert(idx >= 0 && "Pre-begin insertion is not supported yet");
 
     if(count == 0)
         return;
@@ -386,7 +415,7 @@ void m3_buf_insert_n(void** p_buf, intmax_t idx, void* val, uintmax_t count)
 
     size_t value_size = bufvaluesize(buf);
 
-    size_t value_size_wanted = (bufvaluecount(buf) + count) * bufelemsize(buf);
+    size_t value_size_wanted = value_size + count * bufelemsize(buf);
     size_t offset = idx * bufelemsize(buf);
     size_t inserted_size = bufelemsize(buf) * count;
 
@@ -405,41 +434,46 @@ void m3_buf_insert_n(void** p_buf, intmax_t idx, void* val, uintmax_t count)
     if(value_size_wanted >= value_size)
     {
         value_size = max(value_size_wanted, value_size * 2);
-        void* new_head = m3_realloc(m3_memnav(buf, size_t, -1), value_size + bufinfosize_v);
-        *p_buf = buf = m3_memnav(new_head, size_t, 1);
+        size_t elemsize = bufelemsize(buf);
+        size_t* new_head = bufhead(buf);
+        makemem(&new_head, value_size + bufinfosize_v);
+        *new_head = elemsize;
+        *p_buf = buf = new_head + bufinfocount_v;
     }
 
     uint8_t* target_pos = buf + offset;
     (void) memmove(target_pos + inserted_size, target_pos, value_size - offset - inserted_size);
     (void) memcpy(target_pos, val, inserted_size);
+    bufvaluesize(buf) += inserted_size;
 }
 
-void m3_buf_insert(void** p_buf, intmax_t idx, void* val, uintmax_t count)
+void membuf_insert(void** p_buf, intmax_t idx, void* val)
 {
-    m3_buf_insert_n(p_buf, idx, val, 1);
+    membuf_insert_n(p_buf, idx, val, 1);
 }
 
-void m3_buf_insert_back_n(void** p_buf, void* val, uintmax_t count)
+void membuf_insert_back_n(void** p_buf, void* val, uintmax_t count)
 {
-    m3_buf_insert_n(p_buf, m3_buf_count(*p_buf), val, count);
+    membuf_insert_n(p_buf, membuf_count(*p_buf), val, count);
 }
 
-void m3_buf_insert_back(void** p_buf, void* val)
+void membuf_insert_back(void** p_buf, void* val)
 {
-    m3_buf_insert_back_n(p_buf, val, 1);
+    membuf_insert_back_n(p_buf, val, 1);
 }
 
-void m3_buf_erase_n(void** p_buf, intmax_t idx, uintmax_t count)
+void membuf_erase_n(void** p_buf, intmax_t idx, uintmax_t count)
 {
-    assert(p_buf);
+    assert(p_buf && *p_buf);
     assert(count <= INTMAX_MAX);
+    assert(count <= membuf_count(*p_buf));
 
     if(count == 0)
         return;
 
     uint8_t* buf = *p_buf;
 
-    idx = rel2abs(idx, count);
+    idx = rel2abs(idx, membuf_count(buf));
 
     size_t value_size = bufvaluesize(buf);
     size_t offset = idx * bufelemsize(buf);
@@ -448,32 +482,47 @@ void m3_buf_erase_n(void** p_buf, intmax_t idx, uintmax_t count)
     size_t moved_size = value_size - offset - erased_size;
     (void) memmove(target_pos, target_pos + erased_size, moved_size);
     (void) memset(target_pos + moved_size, 0, erased_size);
+    bufvaluesize(buf) -= erased_size;
 
-    size_t value_size_wanted = bufvaluecount(buf) - count;
-    if(value_size_wanted * bufelemsize(buf) * 2 < value_size)
+    size_t value_size_wanted = bufvaluesize(buf);
+    if(value_size_wanted * 2 < value_size)
     {
         value_size = min(value_size_wanted, value_size / 2);
-        void* new_head = m3_realloc(m3_memnav(buf, size_t, -1), value_size + bufinfosize_v);
-        *p_buf = m3_memnav(new_head, size_t, 1);
+        size_t* new_head = NULL;
+        makemem(&new_head, value_size + bufinfosize_v);
+        *p_buf = new_head + bufinfocount_v;
     }
 }
 
-void m3_buf_erase(void** p_buf, intmax_t idx, uintmax_t count)
+void membuf_erase(void** p_buf, intmax_t idx)
 {
-    m3_buf_erase_n(p_buf, idx, 1);
+    membuf_erase_n(p_buf, idx, 1);
 }
 
-void m3_buf_erase_back_n(void** p_buf, uintmax_t count)
+void membuf_erase_back_n(void** p_buf, uintmax_t count)
 {
-    m3_buf_erase_n(p_buf, m3_buf_count(*p_buf) - count, count);
+    membuf_erase_n(p_buf, membuf_count(*p_buf) - count, count);
 }
 
-void m3_buf_erase_back(void** p_buf)
+void membuf_erase_back(void** p_buf)
 {
-    m3_buf_erase_back_n(p_buf, 1);
+    membuf_erase_back_n(p_buf, 1);
 }
 
-#endif
+void* membuf_at(void** p_buf, intmax_t idx)
+{
+    assert(p_buf && *p_buf);
+
+    uint8_t* buf = *p_buf;
+
+    idx = rel2abs(idx, membuf_count(buf));
+    assert(idx >= 0);
+
+    if(idx >= membuf_count(buf))
+        return NULL;
+
+    return buf + idx * bufelemsize(buf);
+}
 
 #endif // MEMMAN_IMPLEMENT
 

@@ -11,40 +11,47 @@ struct test_struct
 
 int main()
 {
-    struct test_struct tss[] = {
-        {.i = 0, .f = 42},
-        {.i = 1, .f = 42}
-    };
+    // Test `mem` family 
+    {
+        void* p = NULL;
+        mem_init(&p);
 
-    void* p = NULL;
-    mem_init(&p);
+        printf("Size of memory: %zu\n", mem_size(p));
+        mem_extend(&p, -200);
+        mem_extend(&p, 200);
+        printf("Size of memory: %zu\n", mem_size(p));
 
-    printf("Size of memory: %zu\n", mem_size(p));
-    mem_extend(&p, -200);
-    mem_extend(&p, 200);
-    printf("Size of memory: %zu\n", mem_size(p));
+        mem_make_str(&p, "The address of current memory is 0x%p", p);
+        printf("%s\n", (const char*) p);
+        printf("Size of memory after making string: %zu\n", mem_size(p));
 
-    mem_make_str(&p, "The address of current memory is 0x%p", p);
-    printf("%s\n", p);
-    printf("Size of memory after making string: %zu\n", mem_size(p));
+        mem_init(&p);
+        printf("Size of memory after re-init: %zu\n", mem_size(p));
+        mem_drop(&p);
+    }
 
-    mem_drop(&p);
+    // Test 'membuf` family
+    {
+        struct test_struct tss[] = {
+            {.i = 0, .f = 42.123},
+            {.i = 1, .f = 42.235}
+        };
 
-#if 0
-    m3_buf_tt(struct test_struct) ts = { 0 };
-    m3_buf_init(&ts, sizeof(struct test_struct));
+        struct test_struct* buf = NULL;
+        membuf_init(&buf, sizeof(*buf));
 
-    m3_buf_insert_back(&ts, tss);
-    printf("Struct: %d, %f\n", ts[0].i, ts[0].f);
-    m3_buf_erase_back(&ts);
+        membuf_insert_back_n(&buf, tss, 2);
+        printf("Tss[0]: i = %d, f = %f\n", buf[0].i, buf[0].f);
+        printf("Tss[1]: i = %d, f = %f\n", buf[1].i, buf[1].f);
 
-    m3_buf_insert_back_n(&ts, tss, 2);
-    printf("Struct: %d, %f\n", ts[0].i, ts[0].f);
-    printf("Struct: %d, %f\n", ts[1].i, ts[1].f);
-    m3_buf_erase_back_n(&ts, 2);
+        membuf_erase(&buf, 0);
+        struct test_struct* elem = membuf_at(&buf, 0);
+        printf("Tss[0]: i = %d, f = %f\n", elem->i, elem->f);
+        elem = membuf_at(&buf, 1);
+        assert(elem == NULL);
 
-    m3_buf_drop(&ts);
-#endif
+        membuf_drop(&buf);
+    }
 
     return 0;
 }
