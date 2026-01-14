@@ -13,6 +13,8 @@ int main()
 {
     // Test `mem` family 
     {
+        printf("===== Test `mem` family =====\n");
+
         void* p = NULL;
         mem_init(&p);
 
@@ -32,6 +34,8 @@ int main()
 
     // Test 'membuf` family
     {
+        printf("===== Test `membuf` family =====\n");
+        
         struct test_struct tss[] = {
             {.i = 0, .f = 42.123},
             {.i = 1, .f = 42.235}
@@ -45,10 +49,16 @@ int main()
         printf("Tss[1]: i = %d, f = %f\n", buf[1].i, buf[1].f);
 
         membuf_erase(&buf, 0);
-        struct test_struct* elem = membuf_at(&buf, 0);
+        struct test_struct* elem = membuf_at(buf, 0);
         printf("Tss[0]: i = %d, f = %f\n", elem->i, elem->f);
         elem = membuf_at(&buf, 1);
         assert(elem == NULL);
+
+        printf("Size of buffer memory: %zu, capacity: %zu\n", membuf_size(buf), membuf_capacity(buf));
+        membuf_reserve(&buf, 1000);
+        printf("Size of buffer memory: %zu, capacity: %zu\n", membuf_size(buf), membuf_capacity(buf));
+        membuf_shrink_to_fit(&buf);
+        printf("Size of buffer memory: %zu, capacity: %zu\n", membuf_size(buf), membuf_capacity(buf));
 
         membuf_drop(&buf);
     }

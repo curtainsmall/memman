@@ -112,15 +112,25 @@ MEMMAN_API void membuf_drop(void** p_buf);
 /// @param[in,out] p_buf Reference to buffer
 MEMMAN_API void membuf_clear(void** p_buf);
 
-/// @brief Get the size of buffer, in byte
+/// @brief Get the total size of the buffer, in byte
 /// @param[in] buf Buffer
-/// @return Size
+/// @return Buffer size
 MEMMAN_API size_t membuf_size(void* buf);
 
-/// @brief Get the count of elements in buffer
+/// @brief Get the capacity of the buffer
 /// @param[in] buf Buffer
-/// @return Count
-MEMMAN_API uintmax_t membuf_count(void* buf);
+/// @return Buffer capacity
+MEMMAN_API size_t membuf_capacity(void* buf);
+
+/// @brief Get the total size of values in the buffer, in byte
+/// @param[in] buf Buffer
+/// @return Buffer value size
+MEMMAN_API size_t membuf_value_size(void* buf);
+
+/// @brief Get the count of values in the buffer
+/// @param[in] buf Buffer
+/// @return Buffer value count
+MEMMAN_API uintmax_t membuf_value_count(void* buf);
 
 /// @brief Insert @a count elements at @a idx
 /// @param[in,out] p_buf Reference to buffer
@@ -149,7 +159,7 @@ MEMMAN_API void membuf_insert_back(void** p_buf, void* val);
 /// @brief Erase @a count elements at @a idx
 /// @param[in,out] p_buf Reference to buffer
 /// @param[in] idx Erase index
-/// @param[in] count Count; should not be greater than @ref membuf_count
+/// @param[in] count Count; should not be greater than @ref membuf_value_count
 MEMMAN_API void membuf_erase_n(void** p_buf, intmax_t idx, uintmax_t count);
 
 /// @brief Erase @a count elements at @a idx
@@ -159,19 +169,28 @@ MEMMAN_API void membuf_erase(void** p_buf, intmax_t idx);
 
 /// @brief Erase @a count elements at @a idx
 /// @param[in,out] p_buf Reference to buffer
-/// @param[in] count Count; should not be greater than @ref membuf_count
+/// @param[in] count Count; should not be greater than @ref membuf_value_count
 MEMMAN_API void membuf_erase_back_n(void** p_buf, uintmax_t count);
 
 /// @brief Erase @a count elements at @a idx
 /// @param[in,out] p_buf Reference to buffer
-/// @param[in] count Count; should not be greater than @ref membuf_count
+/// @param[in] count Count; should not be greater than @ref membuf_value_count
 MEMMAN_API void membuf_erase_back(void** p_buf);
 
 /// @brief Read element at @a idx
-/// @param[in,out] p_buf Reference to buffer
+/// @param[in] buf Buffer
 /// @param[in] idx Index
 /// @return Pointer to the element, or NULL when out of range
-MEMMAN_API void* membuf_at(void** p_buf, intmax_t idx);
+MEMMAN_API void* membuf_at(void* buf, intmax_t idx);
+
+/// @brief Increase the capacity to at least @a new_cap
+/// @param[in,out] p_buf Reference to buffer
+/// @param[in,out] new_cap New capacity
+MEMMAN_API void membuf_reserve(void** p_buf, uintmax_t new_cap);
+
+/// @brief Reduce the capacity to element count
+/// @param[in,out] p_buf Reference to buffer
+MEMMAN_API void membuf_shrink_to_fit(void** p_buf);
 
 /// @}
 
@@ -211,14 +230,17 @@ static struct
      .ud = NULL
 };
 
-static void makemem(void** p_ptr, size_t new_size)
+static void acquire(void** p_ptr, size_t new_size)
 {
     assert(p_ptr);
 
     size_t old_size = 0;
     uint8_t* ptr = NULL;
     if(*p_ptr)
+    {
         ptr = head(*p_ptr);
+        old_size = *((size_t*) ptr);
+    }
 
     for(;;)
     {
@@ -256,7 +278,7 @@ void mem_init(void** p_ptr)
 {
     assert(p_ptr);
 
-    makemem(p_ptr, 0);
+    acquire(p_ptr, 0);
 }
 
 void mem_drop(void** p_ptr)
@@ -291,7 +313,7 @@ void mem_extend(void** p_ptr, intmax_t extent)
     size_t extended_size = imaxabs(extent);
     size_t new_size = size + extended_size;
 
-    makemem(&p, new_size);
+    acquire(&p, new_size);
 
     void* extended_begin = p + size;
     if(extent < 0)
@@ -335,7 +357,7 @@ void mem_make_str_v(void** p_ptr, const char* fmt, va_list va)
     int len = vsnprintf(NULL, 0, fmt, va_tmp);
     va_end(va_tmp);
 
-    makemem(p_ptr, (len + 1) * sizeof(*fmt));
+    acquire(p_ptr, (len + 1) * sizeof(*fmt));
 
     (void) vsnprintf(*p_ptr, len + 1, fmt, va);
 }
@@ -355,12 +377,31 @@ static intmax_t rel2abs(intmax_t idx, uintmax_t count)
 #define bufelemsize(buf) (*bufhead(buf))
 #define bufvaluesize(buf) (*((size_t*)(buf) - 1))
 
+static void bufacquire(void** p_buf, size_t new_size)
+{
+    assert(p_buf && *p_buf);
+
+    void* buf = *p_buf;
+    buf = bufhead(buf);
+    acquire(&buf, new_size + bufinfosize_v);
+    *p_buf = (size_t*)buf + bufinfocount_v;
+}
+
+static void bufrelease(void* buf)
+{
+    if(!buf)
+        return;
+
+    buf = head(buf);
+    release(buf);
+}
+
 void membuf_init(void** p_buf, size_t elemsize)
 {
     assert(p_buf);
 
     size_t* ptr = NULL;
-    makemem(&ptr, bufinfosize_v);
+    acquire(&ptr, bufinfosize_v);
     *ptr = elemsize;
     *p_buf = ptr + bufinfocount_v;
 }
@@ -383,20 +424,33 @@ void membuf_clear(void** p_buf)
     if(!*p_buf)
         return;
 
-    makemem(p_buf, 0);
+    acquire(p_buf, 0);
 }
 
 size_t membuf_size(void* buf)
 {
     assert(buf);
 
+    return mem_size(bufhead(buf)) - bufinfosize_v;
+}
+
+size_t membuf_capacity(void* buf)
+{
+    assert(buf);
+
+    return membuf_size(buf) / bufelemsize(buf);
+}
+
+size_t membuf_value_size(void* buf)
+{
+    assert(buf);
+
     return bufvaluesize(buf);
 }
 
-uintmax_t membuf_count(void* buf)
+uintmax_t membuf_value_count(void* buf)
 {
     assert(buf);
-    assert(bufvaluesize(buf) % bufelemsize(buf) == 0);
 
     return bufvaluesize(buf) / bufelemsize(buf);
 }
@@ -434,11 +488,8 @@ void membuf_insert_n(void** p_buf, intmax_t idx, void* val, uintmax_t count)
     if(value_size_wanted >= value_size)
     {
         value_size = max(value_size_wanted, value_size * 2);
-        size_t elemsize = bufelemsize(buf);
-        size_t* new_head = bufhead(buf);
-        makemem(&new_head, value_size + bufinfosize_v);
-        *new_head = elemsize;
-        *p_buf = buf = new_head + bufinfocount_v;
+        bufacquire(&buf, value_size);
+        *p_buf = buf;
     }
 
     uint8_t* target_pos = buf + offset;
@@ -454,7 +505,7 @@ void membuf_insert(void** p_buf, intmax_t idx, void* val)
 
 void membuf_insert_back_n(void** p_buf, void* val, uintmax_t count)
 {
-    membuf_insert_n(p_buf, membuf_count(*p_buf), val, count);
+    membuf_insert_n(p_buf, membuf_value_count(*p_buf), val, count);
 }
 
 void membuf_insert_back(void** p_buf, void* val)
@@ -466,14 +517,14 @@ void membuf_erase_n(void** p_buf, intmax_t idx, uintmax_t count)
 {
     assert(p_buf && *p_buf);
     assert(count <= INTMAX_MAX);
-    assert(count <= membuf_count(*p_buf));
+    assert(count <= membuf_value_count(*p_buf));
 
     if(count == 0)
         return;
 
     uint8_t* buf = *p_buf;
 
-    idx = rel2abs(idx, membuf_count(buf));
+    idx = rel2abs(idx, membuf_value_count(buf));
 
     size_t value_size = bufvaluesize(buf);
     size_t offset = idx * bufelemsize(buf);
@@ -488,9 +539,8 @@ void membuf_erase_n(void** p_buf, intmax_t idx, uintmax_t count)
     if(value_size_wanted * 2 < value_size)
     {
         value_size = min(value_size_wanted, value_size / 2);
-        size_t* new_head = NULL;
-        makemem(&new_head, value_size + bufinfosize_v);
-        *p_buf = new_head + bufinfocount_v;
+        bufacquire(&buf, value_size);
+        *p_buf = buf;
     }
 }
 
@@ -501,7 +551,7 @@ void membuf_erase(void** p_buf, intmax_t idx)
 
 void membuf_erase_back_n(void** p_buf, uintmax_t count)
 {
-    membuf_erase_n(p_buf, membuf_count(*p_buf) - count, count);
+    membuf_erase_n(p_buf, membuf_value_count(*p_buf) - count, count);
 }
 
 void membuf_erase_back(void** p_buf)
@@ -509,19 +559,38 @@ void membuf_erase_back(void** p_buf)
     membuf_erase_back_n(p_buf, 1);
 }
 
-void* membuf_at(void** p_buf, intmax_t idx)
+void* membuf_at(void* buf, intmax_t idx)
+{
+    assert(buf);
+
+    idx = rel2abs(idx, membuf_value_count(buf));
+    assert(idx >= 0);
+
+    if(idx >= membuf_value_count(buf))
+        return NULL;
+
+    return (uint8_t*) buf + idx * bufelemsize(buf);
+}
+
+void membuf_reserve(void** p_buf, uintmax_t new_cap)
 {
     assert(p_buf && *p_buf);
 
     uint8_t* buf = *p_buf;
 
-    idx = rel2abs(idx, membuf_count(buf));
-    assert(idx >= 0);
+    size_t size_wanted = new_cap * bufelemsize(buf);
+    if(bufsize(buf) < size_wanted)
+    {
+        bufacquire(&buf, size_wanted);
+        *p_buf = buf;
+    }
+}
 
-    if(idx >= membuf_count(buf))
-        return NULL;
+void membuf_shrink_to_fit(void** p_buf)
+{
+    assert(p_buf && *p_buf);
 
-    return buf + idx * bufelemsize(buf);
+    bufacquire(p_buf, bufvaluesize(*p_buf));
 }
 
 #endif // MEMMAN_IMPLEMENT
