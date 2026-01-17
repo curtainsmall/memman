@@ -15,7 +15,6 @@
 /// All possible logic errors in memman are checked with @a assert in operation functions. You can and should always check before operate
 
 /// @{
-
 /// @brief Error callback type
 /// @sa @ref memerr_set_callback
 typedef void (*memerr_callback_t)(void* userdata);
@@ -52,11 +51,23 @@ MEMMAN_API size_t mem_size(void* ptr);
 
 /// @brief Extend memory
 /// @param[in,out] p_ptr Reference to the memory
-/// @param[in] extent Size of extension:
-/// Positive: extend forwards
-/// Negative: extend backwards
-/// Zero: do nothing
-MEMMAN_API void mem_extend(void** p_ptr, intmax_t extent);
+/// @param[in] size Size
+MEMMAN_API void mem_extend(void** p_ptr, size_t size);
+
+/// @brief Extend memory backwards
+/// @param[in,out] p_ptr Reference to the memory
+/// @param[in] size Size
+MEMMAN_API void mem_extend_backwards(void** p_ptr, size_t size);
+
+/// @brief Shrink memory
+/// @param[in,out] p_ptr Reference to the memory
+/// @param[in] size Size
+MEMMAN_API void mem_shrink(void** p_ptr, size_t size);
+
+/// @brief Shrink memory backwards
+/// @param[in,out] p_ptr Reference to the memory
+/// @param[in] size Size
+MEMMAN_API void mem_shrink_backwards(void** p_ptr, size_t size);
 
 /// @brief Copy memory
 /// @param[in,out] p_dst Reference to the destination memory
@@ -93,7 +104,6 @@ MEMMAN_API void mem_make_str_v(void** p_ptr, const char* fmt, va_list va);
 /// All function starts with `membuf_` prefix must apply to the memory initialized with @ref membuf_init and be released with @ref membuf_drop
 
 /// @{
-
 /// @brief A help marker which represents that this variable is allocated with @ref membuf_init and thus must be freed with @ref mem_drop
 /// You can just use raw pointer type if you want
 #define membuf_tt(Type) Type*
@@ -120,7 +130,7 @@ MEMMAN_API size_t membuf_size(void* buf);
 /// @brief Get the capacity of the buffer
 /// @param[in] buf Buffer
 /// @return Buffer capacity
-MEMMAN_API size_t membuf_capacity(void* buf);
+MEMMAN_API uintmax_t membuf_capacity(void* buf);
 
 /// @brief Get the total size of values in the buffer, in byte
 /// @param[in] buf Buffer
@@ -299,43 +309,83 @@ size_t mem_size(void* ptr)
     return *head(ptr);
 }
 
-void mem_extend(void** p_ptr, intmax_t extent)
+void mem_extend(void** p_ptr, size_t size)
 {
-    assert(p_ptr);
+    assert(p_ptr && *p_ptr);
 
-    if(extent == 0)
+    if(size == 0)
         return;
 
-    uint8_t* p = *p_ptr;
-    assert(p);
+    acquire(p_ptr, mem_size(*p_ptr) + size);
+}
 
-    size_t size = mem_size(p);
-    size_t extended_size = imaxabs(extent);
-    size_t new_size = size + extended_size;
+void mem_extend_backwards(void** p_ptr, size_t size)
+{
+    assert(p_ptr && *p_ptr);
 
-    acquire(&p, new_size);
+    mem_extend(p_ptr, size);
+    mem_shift(p_ptr, size, 0, size);
+}
 
-    void* extended_begin = p + size;
-    if(extent < 0)
-    {
-        (void) memmove(extended_begin, p, size);
-        extended_begin = p;
-    }
+void mem_shrink(void** p_ptr, size_t size)
+{
+    assert(p_ptr && *p_ptr);
+    assert(size <= mem_size(*p_ptr));
 
-    (void) memset(extended_begin, 0, extended_size);
+    if(size == 0)
+        return;
 
-    *p_ptr = p;
+    acquire(p_ptr, mem_size(*p_ptr) - size);
+}
+
+void mem_shrink_backwards(void** p_ptr, size_t size)
+{
+    assert(p_ptr && *p_ptr);
+    assert(size <= mem_size(*p_ptr));
+
+    mem_shift(p_ptr, 0, size, size);
+    mem_shrink(p_ptr, size);
 }
 
 void mem_copy(void** p_dst, size_t dst_idx, const void* src, size_t src_idx, size_t size)
 {
     assert(p_dst && *p_dst);
     assert(src);
+
+    if(size == 0)
+        return;
+
+    uint8_t* dst_ptr = *p_dst;
+    uint8_t* src_ptr = src;
+    size_t extend_size = dst_idx + size - mem_size(dst_ptr);
+
+    if(extend_size > 0)
+    {
+        mem_extend(&dst_ptr, extend_size);
+        *p_dst = dst_ptr;
+    }
+
+    (void) memcpy(dst_ptr + dst_idx, src_ptr + src_idx, size);
 }
 
 void mem_shift(void** p_ptr, size_t dst_idx, size_t src_idx, size_t size)
 {
-    assert(p_ptr);
+    assert(p_ptr && *p_ptr);
+
+    uint8_t* ptr = *p_ptr;
+    assert(src_idx + size <= mem_size(ptr));
+
+    if(size == 0)
+        return;
+
+    size_t extend_size = dst_idx + size - mem_size(ptr);
+    if(extend_size > 0)
+    {
+        mem_extend(&ptr, extend_size);
+        *p_ptr = ptr;
+    }
+
+    (void) memmove(ptr + dst_idx, ptr + src_idx, size);
 }
 
 void mem_make_str(void** p_ptr, const char* fmt, ...)
@@ -384,7 +434,7 @@ static void bufacquire(void** p_buf, size_t new_size)
     void* buf = *p_buf;
     buf = bufhead(buf);
     acquire(&buf, new_size + bufinfosize_v);
-    *p_buf = (size_t*)buf + bufinfocount_v;
+    *p_buf = (size_t*) buf + bufinfocount_v;
 }
 
 static void bufrelease(void* buf)
@@ -413,7 +463,7 @@ void membuf_drop(void** p_buf)
     if(!*p_buf)
         return;
 
-    mem_drop(&(void*) { (size_t*) *p_buf - bufinfocount_v});
+    mem_drop(&(void*) { (size_t*) *p_buf - bufinfocount_v });
     *p_buf = NULL;
 }
 
@@ -434,7 +484,7 @@ size_t membuf_size(void* buf)
     return mem_size(bufhead(buf)) - bufinfosize_v;
 }
 
-size_t membuf_capacity(void* buf)
+uintmax_t membuf_capacity(void* buf)
 {
     assert(buf);
 
