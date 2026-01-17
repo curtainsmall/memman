@@ -54,20 +54,20 @@ MEMMAN_API size_t mem_size(void* ptr);
 /// @param[in] size Size
 MEMMAN_API void mem_extend(void** p_ptr, size_t size);
 
-/// @brief Extend memory backwards
+/// @brief Extend memory before the begin of the memory
 /// @param[in,out] p_ptr Reference to the memory
 /// @param[in] size Size
-MEMMAN_API void mem_extend_backwards(void** p_ptr, size_t size);
+MEMMAN_API void mem_extend_inverse(void** p_ptr, size_t size);
 
 /// @brief Shrink memory
 /// @param[in,out] p_ptr Reference to the memory
 /// @param[in] size Size
 MEMMAN_API void mem_shrink(void** p_ptr, size_t size);
 
-/// @brief Shrink memory backwards
+/// @brief Shrink memory from the begin of the memory
 /// @param[in,out] p_ptr Reference to the memory
 /// @param[in] size Size
-MEMMAN_API void mem_shrink_backwards(void** p_ptr, size_t size);
+MEMMAN_API void mem_shrink_inverse(void** p_ptr, size_t size);
 
 /// @brief Copy memory
 /// @param[in,out] p_dst Reference to the destination memory
@@ -319,7 +319,7 @@ void mem_extend(void** p_ptr, size_t size)
     acquire(p_ptr, mem_size(*p_ptr) + size);
 }
 
-void mem_extend_backwards(void** p_ptr, size_t size)
+void mem_extend_inverse(void** p_ptr, size_t size)
 {
     assert(p_ptr && *p_ptr);
 
@@ -338,7 +338,7 @@ void mem_shrink(void** p_ptr, size_t size)
     acquire(p_ptr, mem_size(*p_ptr) - size);
 }
 
-void mem_shrink_backwards(void** p_ptr, size_t size)
+void mem_shrink_inverse(void** p_ptr, size_t size)
 {
     assert(p_ptr && *p_ptr);
     assert(size <= mem_size(*p_ptr));
@@ -575,6 +575,7 @@ void membuf_erase_n(void** p_buf, intmax_t idx, uintmax_t count)
     uint8_t* buf = *p_buf;
 
     idx = rel2abs(idx, membuf_value_count(buf));
+    assert(idx >= 0);
 
     size_t value_size = bufvaluesize(buf);
     size_t offset = idx * bufelemsize(buf);
