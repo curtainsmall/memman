@@ -103,12 +103,14 @@ MEMMAN_API void mem_shift(void** p_ptr, size_t dst_idx, size_t src_idx, size_t s
 /// @param[in,out] p_ptr Reference to the memory
 /// @param[in] fmt Format
 /// @param[in] ... Arguments
+/// @sa For detailed string control, use @ref memstr family
 MEMMAN_API void mem_make_str(void** p_ptr, const char* fmt, ...);
 
 /// @brief Make formatted string to memory
 /// @param[in,out] p_ptr Reference to the memory
 /// @param[in] fmt Format
 /// @param[in] va Arguments
+/// @sa For detailed string control, use @ref memstr family
 MEMMAN_API void mem_make_str_v(void** p_ptr, const char* fmt, va_list va);
 
 /// @}
@@ -218,6 +220,45 @@ MEMMAN_API void membuf_shrink_to_fit(void** p_buf);
 
 /// @}
 
+/// @addtogroup memstr
+/// Function family for string memory manupulation
+/// All function starts with `memstr_` prefix must apply to the memory initialized with @ref memstr_init and be released with @ref memstr_drop
+
+/// @{
+
+/// @brief Init string
+/// @param[in,out] p_str Reference to a pointer for pointer
+/// The `*p_str` must either be NULL, or a string previously initialized with @ref memstr_init
+MEMMAN_API void memstr_init(char** p_str);
+
+/// @brief Drop string
+/// @param[in,out] p_str Reference to pointer
+MEMMAN_API void memstr_drop(char** p_str);
+
+/// @brief Get the size of the string memory
+/// @param[in] str String
+/// @return Size
+MEMMAN_API size_t memstr_size(const char* str);
+
+/// @brief Get the length of the string, excluding null-terminator
+/// @param[in] str String
+/// @return Length
+MEMMAN_API size_t memstr_len(const char* str);
+
+/// @brief Append formatted string to current string
+/// @param[in,out] p_str Reference to string
+/// @param[in] fmt Format
+/// @param[in] ... Arguemnts
+MEMMAN_API void memstr_append(char** p_str, const char* fmt, ...);
+
+/// @brief Append formatted string to current string
+/// @param[in,out] p_str Reference to string
+/// @param[in] fmt Format
+/// @param[in] va Arguemnts
+MEMMAN_API void memstr_append_v(char** p_str, const char* fmt, va_list va);
+
+/// @}
+
 #ifdef MEMMAN_IMPLEMENT
 
 #include <assert.h>
@@ -235,7 +276,7 @@ MEMMAN_API void membuf_shrink_to_fit(void** p_buf);
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #endif // !min
 
-#define head(ptr) ((size_t*) (ptr) - 1)
+#define ptr2head(ptr) ((size_t*) (ptr) - 1)
 
 static int default_err_callback(void* ud)
 {
@@ -262,7 +303,7 @@ static void acquire(void** p_ptr, size_t new_size)
     uint8_t* ptr = NULL;
     if(*p_ptr)
     {
-        ptr = head(*p_ptr);
+        ptr = ptr2head(*p_ptr);
         old_size = *((size_t*) ptr);
     }
 
@@ -289,7 +330,7 @@ static void release(void* p)
     if(!p)
         return;
 
-    free(head(p));
+    free(ptr2head(p));
 }
 
 void memerr_set_callback(memerr_callback_t callback, void* userdata)
@@ -298,19 +339,16 @@ void memerr_set_callback(memerr_callback_t callback, void* userdata)
     err_callback.ud = userdata;
 }
 
-void mem_init(void** p_ptr)
+void mem_init(void** p_ptr, size_t init_size)
 {
     assert(p_ptr);
 
-    acquire(p_ptr, 0);
+    acquire(p_ptr, init_size);
 }
 
 void mem_drop(void** p_ptr)
 {
     assert(p_ptr);
-
-    if(!*p_ptr)
-        return;
 
     release(*p_ptr);
     *p_ptr = NULL;
@@ -320,7 +358,7 @@ size_t mem_size(void* ptr)
 {
     assert(ptr);
 
-    return *head(ptr);
+    return *ptr2head(ptr);
 }
 
 void mem_extend_back(void** p_ptr, size_t size)
@@ -476,9 +514,10 @@ static intmax_t rel2abs(intmax_t idx, size_t count)
 
 #define bufinfocount_v (2)
 #define bufinfosize_v (bufinfocount_v * sizeof(size_t))
-#define bufhead(buf) ((size_t*)(buf) - 2)
-#define bufsize(buf) (mem_size(bufhead(buf)))
-#define bufelemsize(buf) (*bufhead(buf))
+#define buf2ptr(buf) ((size_t*)(buf) - bufinfocount_v)
+#define ptr2buf(ptr) ((size_t*)(ptr) + bufinfocount_v)
+#define bufsize(buf) (mem_size(buf2ptr(buf)))
+#define bufelemsize(buf) (*buf2ptr(buf))
 #define bufvaluesize(buf) (*((size_t*)(buf) - 1))
 
 static void bufacquire(void** p_buf, size_t new_size)
@@ -486,18 +525,9 @@ static void bufacquire(void** p_buf, size_t new_size)
     assert(p_buf && *p_buf);
 
     void* buf = *p_buf;
-    buf = bufhead(buf);
+    buf = buf2ptr(buf);
     acquire(&buf, new_size + bufinfosize_v);
     *p_buf = (size_t*) buf + bufinfocount_v;
-}
-
-static void bufrelease(void* buf)
-{
-    if(!buf)
-        return;
-
-    buf = head(buf);
-    release(buf);
 }
 
 void membuf_init(void** p_buf, size_t elemsize)
@@ -505,9 +535,10 @@ void membuf_init(void** p_buf, size_t elemsize)
     assert(p_buf);
 
     size_t* ptr = NULL;
-    acquire(&ptr, bufinfosize_v);
-    *ptr = elemsize;
-    *p_buf = ptr + bufinfocount_v;
+    mem_init(&ptr, bufinfosize_v);
+    *p_buf = ptr2buf(ptr);
+
+    bufelemsize(*p_buf) = elemsize;
 }
 
 void membuf_drop(void** p_buf)
@@ -517,7 +548,7 @@ void membuf_drop(void** p_buf)
     if(!*p_buf)
         return;
 
-    mem_drop(&(void*) { (size_t*) *p_buf - bufinfocount_v });
+    mem_drop(&(void*) { buf2ptr(*p_buf) });
     *p_buf = NULL;
 }
 
@@ -528,14 +559,16 @@ void membuf_clear(void** p_buf)
     if(!*p_buf)
         return;
 
-    acquire(p_buf, 0);
+    uint8_t* buf = *p_buf;
+    (void) memset(buf, 0, bufvaluesize(buf));
+    bufvaluesize(buf) = 0;
 }
 
 size_t membuf_size(void* buf)
 {
     assert(buf);
 
-    return mem_size(bufhead(buf)) - bufinfosize_v;
+    return mem_size(buf2ptr(buf)) - bufinfosize_v;
 }
 
 size_t membuf_capacity(void* buf)
@@ -571,20 +604,19 @@ void membuf_insert_n(void** p_buf, size_t idx, void* val, size_t count)
     uint8_t* buf = *p_buf;
 
     size_t value_size = bufvaluesize(buf);
-
-    size_t value_size_wanted = value_size + count * bufelemsize(buf);
+    size_t extend_size = value_size + count * bufelemsize(buf) - bufsize(buf);
     size_t offset = idx * bufelemsize(buf);
     size_t inserted_size = bufelemsize(buf) * count;
 
-    if(value_size_wanted >= value_size)
+    if(extend_size > 0)
     {
-        value_size = max(value_size_wanted, value_size * 2);
-        bufacquire(&buf, value_size);
-        *p_buf = buf;
+        void* ptr = buf2ptr(buf);
+        mem_extend_back(&ptr,  max(extend_size, value_size * 2));
+        *p_buf = buf = ptr2buf(ptr);
     }
 
     uint8_t* target_pos = buf + offset;
-    (void) memmove(target_pos + inserted_size, target_pos, value_size - offset - inserted_size);
+    (void) memmove(target_pos + inserted_size, target_pos, value_size - offset);
     (void) memcpy(target_pos, val, inserted_size);
     bufvaluesize(buf) += inserted_size;
 }
@@ -677,6 +709,71 @@ void membuf_shrink_to_fit(void** p_buf)
     assert(p_buf && *p_buf);
 
     bufacquire(p_buf, bufvaluesize(*p_buf));
+}
+
+#define strinfocount_v (1)
+#define strinfosize_v (strinfocount_v * sizeof(size_t))
+#define str2ptr(str) ((size_t*)(str) - strinfocount_v)
+#define ptr2str(ptr) ((size_t*)(ptr) + strinfocount_v)
+#define strcount(str) (*str2ptr(str))
+
+void memstr_init(char** p_str)
+{
+    assert(p_str);
+
+    acquire(p_str, strinfosize_v + 1);
+    **p_str = 0;
+    *p_str = (size_t*) (*p_str) + strinfocount_v;
+}
+
+void memstr_drop(char** p_str)
+{
+    assert(p_str);
+
+    release(str2ptr(*p_str));
+    *p_str = NULL;
+}
+
+size_t memstr_size(const char* str)
+{
+    assert(str);
+
+    return mem_size(str2ptr(str)) - strinfosize_v;
+}
+
+size_t memstr_len(const char* str)
+{
+    assert(str);
+
+    return strcount(str);
+}
+
+void memstr_append(char** p_str, const char* fmt, ...)
+{
+    assert(p_str && *p_str);
+
+    va_list va;
+    va_start(va, fmt);
+    memstr_append_v(p_str, fmt, va);
+    va_end(va);
+}
+
+void memstr_append_v(char** p_str, const char* fmt, va_list va)
+{
+    assert(p_str && *p_str);
+
+    va_list va_tmp;
+    va_copy(va_tmp, va);
+    int len = vsnprintf(NULL, 0, fmt, va_tmp);
+    va_end(va_tmp);
+
+    size_t old_len = memstr_len(*p_str);
+    size_t* ptr = ptr2head(*p_str);
+    mem_extend_back(&ptr, len);
+    *p_str = ptr2str(ptr);
+    strcount(*p_str) = mem_size(ptr) - strinfosize_v - 1;
+
+    (void) vsnprintf((char*)(*p_str) + old_len, len + 1, fmt, va);
 }
 
 #endif // MEMMAN_IMPLEMENT

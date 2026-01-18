@@ -16,7 +16,7 @@ int main()
         printf("===== Test `mem` family =====\n");
 
         void* p = NULL;
-        mem_init(&p);
+        mem_init(&p, 0);
 
         printf("Size of memory: %zu\n", mem_size(p));
         mem_extend_back(&p, 200);
@@ -27,7 +27,7 @@ int main()
         printf("%s\n", (const char*) p);
         printf("Size of memory after making string: %zu\n", mem_size(p));
 
-        mem_init(&p);
+        mem_init(&p, 0);
         printf("Size of memory after re-init: %zu\n", mem_size(p));
         mem_drop(&p);
     }
@@ -61,6 +61,21 @@ int main()
         printf("Size of buffer memory: %zu, capacity: %zu\n", membuf_size(buf), membuf_capacity(buf));
 
         membuf_drop(&buf);
+    }
+
+    // Test 'memstr' family
+    {
+        printf("===== Test `memstr` family =====\n");
+
+        char* str = NULL;
+        memstr_init(&str);
+
+        memstr_append(&str, "A test string at address %p\n", str);
+        printf(str);
+        memstr_append(&str, "Another test string\n");
+        printf(str);
+
+        memstr_drop(&str);
     }
 
     return 0;
