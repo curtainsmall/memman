@@ -39,7 +39,7 @@ typedef enum mem_flag
 {
     /// @brief Use function-specific default flag
     MEM_DEFAULT = 0,
-    
+
     MEM_MOVE = 1 << 0,
     MEM_DISPLACE = 1 << 1,
 } mem_flag_t;
@@ -96,7 +96,7 @@ MEMMAN_API void mem_transfer(void** p_dst, size_t dst_idx, void** p_src, size_t 
 /// @param[in] size Size of values
 /// @param[in] flag Flags
 /// @ref MEM_MOVE Zero out the original values; the default behavior is to leave the original values as is
-/// @ref MEM_DISPLACE Displace the values at target position towards the end; the default behavior is to overwrite 
+/// @ref MEM_DISPLACE Displace the values at target position towards the end; the default behavior is to overwrite
 MEMMAN_API void mem_shift(void** p_ptr, size_t dst_idx, size_t src_idx, size_t size, mem_flag_t flag);
 
 /// @brief Make formatted string to memory
@@ -225,7 +225,6 @@ MEMMAN_API void membuf_shrink_to_fit(void** p_buf);
 /// All function starts with `memstr_` prefix must apply to the memory initialized with @ref memstr_init and be released with @ref memstr_drop
 
 /// @{
-
 /// @brief Init string
 /// @param[in,out] p_str Reference to a pointer for pointer
 /// The `*p_str` must either be NULL, or a string previously initialized with @ref memstr_init
@@ -257,6 +256,16 @@ MEMMAN_API void memstr_append(char** p_str, const char* fmt, ...);
 /// @param[in] va Arguemnts
 MEMMAN_API void memstr_append_v(char** p_str, const char* fmt, va_list va);
 
+/// @brief Append a single character to current string
+/// @param[in,out] p_str Reference to string
+/// @param[in] c Character
+MEMMAN_API void memstr_append_char(char** p_str, char c);
+
+/// @brief Reduce @a len characters from current string
+/// @param[in,out] p_str Reference to string
+/// @param[in] len Length
+MEMMAN_API void memstr_reduce(char** p_str, size_t len);
+
 /// @}
 
 #ifdef MEMMAN_IMPLEMENT
@@ -275,6 +284,8 @@ MEMMAN_API void memstr_append_v(char** p_str, const char* fmt, va_list va);
 #ifndef min
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #endif // !min
+
+#define defer(...) for(int _i = 0; _i == 0; ++_i, (__VA_ARGS__))
 
 #define ptr2head(ptr) ((size_t*) (ptr) - 1)
 
@@ -427,7 +438,6 @@ void mem_transfer(void** p_dst, size_t dst_idx, void** p_src, size_t src_idx, si
 
     if(flag & MEM_MOVE)
         (void) memset(src + src_idx, 0, size);
-
 }
 
 void mem_shift(void** p_ptr, size_t dst_idx, size_t src_idx, size_t size, mem_flag_t flag)
@@ -477,7 +487,6 @@ void mem_shift(void** p_ptr, size_t dst_idx, size_t src_idx, size_t size, mem_fl
         (void) memmove(ptr + dst_idx, ptr + src_idx, size);
         (void) memset(ptr + src_idx, 0, size);
     }
-
 }
 
 void mem_make_str(void** p_ptr, const char* fmt, ...)
@@ -611,7 +620,7 @@ void membuf_insert_n(void** p_buf, size_t idx, void* val, size_t count)
     if(extend_size > 0)
     {
         void* ptr = buf2ptr(buf);
-        mem_extend_back(&ptr,  max(extend_size, value_size * 2));
+        mem_extend_back(&ptr, max(extend_size, value_size * 2));
         *p_buf = buf = ptr2buf(ptr);
     }
 
@@ -723,7 +732,7 @@ void memstr_init(char** p_str)
 
     acquire(p_str, strinfosize_v + 1);
     **p_str = 0;
-    *p_str = (size_t*) (*p_str) + strinfocount_v;
+    *p_str = ptr2str(*p_str);
 }
 
 void memstr_drop(char** p_str)
@@ -768,12 +777,52 @@ void memstr_append_v(char** p_str, const char* fmt, va_list va)
     va_end(va_tmp);
 
     size_t old_len = memstr_len(*p_str);
-    size_t* ptr = ptr2head(*p_str);
+
+    size_t* ptr = str2ptr(*p_str);
     mem_extend_back(&ptr, len);
     *p_str = ptr2str(ptr);
+
     strcount(*p_str) = mem_size(ptr) - strinfosize_v - 1;
 
-    (void) vsnprintf((char*)(*p_str) + old_len, len + 1, fmt, va);
+    (void) vsnprintf((char*) (*p_str) + old_len, len + 1, fmt, va);
+}
+
+void memstr_append_char(char** p_str, char c)
+{
+    assert(p_str && *p_str);
+
+    size_t old_len = memstr_len(*p_str);
+
+    if(old_len == memstr_size(*p_str) - 1)
+    {
+        size_t* ptr = str2ptr(*p_str);
+        mem_extend_back(&ptr, 2 * old_len);
+        *p_str = ptr2str(ptr);
+    }
+
+    (*p_str)[old_len] = c;
+    strcount(*p_str) = old_len + 1;
+    (*p_str)[old_len + 1] = '\0';
+}
+
+void memstr_reduce(char** p_str, size_t len)
+{
+    assert(p_str && *p_str);
+
+    char* str = *p_str;
+    assert(len <= memstr_len(str));
+
+    size_t old_len = memstr_len(str);
+
+    strcount(str) = old_len - len;
+    (void) memset(str + strcount(str), 0, len);
+
+    if(old_len >= 2 * strcount(str))
+    {
+        size_t* ptr = str2ptr(str);
+        mem_shrink_back(&ptr, len);
+        *p_str = str = ptr2str(ptr);
+    }
 }
 
 #endif // MEMMAN_IMPLEMENT

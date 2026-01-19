@@ -73,6 +73,11 @@ int main()
         memstr_append(&str, "A test string at address %p\n", str);
         printf(str);
         memstr_append(&str, "Another test string\n");
+        memstr_append_char(&str, 'Y');
+        memstr_append_char(&str, '\n');
+        printf(str);
+
+        memstr_reduce(&str, 10);
         printf(str);
 
         memstr_drop(&str);
