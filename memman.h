@@ -9,10 +9,24 @@
 
 #include <stdint.h>
 
+/// @mainpage memman
+/// This is a tiny single-header library for simple memory manupulation with functions provided in standard library
+///
+/// Usage:
+/// - Include this header for declarations.
+/// - Include this header with #define MEMMAN_IMPLEMENT before the #include derivative in one and only one source file for definations
+///
+/// Function families:
+/// - @ref mem
+/// - @ref membuf
+/// - @ref memstr
+/// - @ref memerr
+
 /// @addtogroup memerr
-/// Error handling
-/// The memman library itself does not raise any runtime error. The only possible runtime error is "out of memory" which is an OS error, in which case the callback of type @ref memerr_callback_t is called. The default callback behavior is to print error message to @a stderr and call `about()`. You can set your own callback if you can recover from such situation. If you succeed to recover from the error, just return the callback and memman will try to allocate again; If you fail to recover the error, you should abort the program manully.
-/// All possible logic errors in memman are checked with @a assert in operation functions. You can and should always check before operate
+/// @brief Error handling
+/// @details The memman library itself does not raise any runtime error. The only possible runtime error is "out of memory" which is an OS error, in which case the callback of type @ref memerr_callback_t is called. The default callback behavior is to print error message to @a stderr and call `about()`. You can set your own callback if you can recover from such situation. If you succeed to recover from the error, just return the callback and memman will try to allocate again; If you fail to recover the error, you should abort the program manully.
+///
+/// All possible logic errors in memman are checked with @a assert in operation functions. You can and should always check before operate.
 
 /// @{
 /// @brief Error callback type
@@ -27,17 +41,13 @@ MEMMAN_API void memerr_set_callback(memerr_callback_t callback, void* userdata);
 /// @}
 
 /// @addtogroup mem
-/// Function family for raw memory manupulation
-/// All function starts with `mem_` prefix must apply to the memory initialized with @ref mem_init and be released with @ref mem_drop
+/// @brief Function family for raw memory manupulation.
+/// @note All functions starting with `mem_` prefix must apply to the memory initialized with @ref mem_init and released with @ref mem_drop.
 
 /// @{
-/// @brief A help marker which represents that this variable is allocated with @ref mem_init and thus must be freed with @ref mem_drop
-/// You can just use raw pointer type if you want
-#define mem_tt(Type) Type*
-
+/// @brief Flags
 typedef enum mem_flag
 {
-    /// @brief Use function-specific default flag
     MEM_DEFAULT = 0,
 
     MEM_MOVE = 1 << 0,
@@ -46,8 +56,9 @@ typedef enum mem_flag
 
 /// @brief Init memory
 /// @param[in,out] p_ptr Reference to a pointer for the memory
-/// The `*p_ptr` must either be NULL, or a memory previously initialized with @ref mem_init
-MEMMAN_API void mem_init(void** p_ptr);
+/// @param[in] init_size Init size
+/// @note The `*p_ptr` must either be NULL, or a memory previously initialized with @ref mem_init
+MEMMAN_API void mem_init(void** p_ptr, size_t init_size);
 
 /// @brief Drop decorated memory
 /// @param[in] p_ptr Reference to the memory
@@ -79,24 +90,24 @@ MEMMAN_API void mem_shrink_back(void** p_ptr, size_t size);
 MEMMAN_API void mem_shrink_front(void** p_ptr, size_t size);
 
 /// @brief Transfer values across two memories
-/// @param[in,out] p_dst Reference to destination memory
+/// @param[in,out] p_dst Reference to the destination memory
 /// @param[in] dst_idx Index of start position in destination
-/// @param[in,out] p_src Reference to source memory
+/// @param[in,out] p_src Reference to the source memory
 /// @param[in] src_idx Index of start position in source
 /// @param[in] size Size of values
 /// @param[in] flag Flags:
-/// @ref MEM_MOVE Zero out the original values; the default behavior is to leave the original values as is
-/// @ref MEM_DISPLACE Displace the target values towards the end; the default behavior is to overwrite the target values
+/// - @ref MEM_MOVE Zero out the original values; the default behavior is to leave the original values as is
+/// - @ref MEM_DISPLACE Displace the target values towards the end; the default behavior is to overwrite the target values
 MEMMAN_API void mem_transfer(void** p_dst, size_t dst_idx, void** p_src, size_t src_idx, size_t size, mem_flag_t flag);
 
-/// @brief Shift values across two memories
+/// @brief Shift values in one memory
 /// @param[in,out] p_ptr Reference to the memory
 /// @param[in] dst_idx Index of start position of destination
 /// @param[in] src_idx Index of start position of source
 /// @param[in] size Size of values
 /// @param[in] flag Flags
-/// @ref MEM_MOVE Zero out the original values; the default behavior is to leave the original values as is
-/// @ref MEM_DISPLACE Displace the values at target position towards the end; the default behavior is to overwrite
+/// - @ref MEM_MOVE Zero out the original values; the default behavior is to leave the original values as is
+/// - @ref MEM_DISPLACE Displace the values at target position towards the opposite direction of the shift; the default behavior is to overwrite
 MEMMAN_API void mem_shift(void** p_ptr, size_t dst_idx, size_t src_idx, size_t size, mem_flag_t flag);
 
 /// @brief Make formatted string to memory
@@ -116,18 +127,14 @@ MEMMAN_API void mem_make_str_v(void** p_ptr, const char* fmt, va_list va);
 /// @}
 
 /// @addtogroup membuf
-/// Function family for buffer memory manupulation
-/// All function starts with `membuf_` prefix must apply to the memory initialized with @ref membuf_init and be released with @ref membuf_drop
+/// @brief Function family for buffer memory manupulation
+/// @note All functions starting with `membuf_` prefix must apply to the memory initialized with @ref membuf_init and released with @ref membuf_drop
 
 /// @{
-/// @brief A help marker which represents that this variable is allocated with @ref membuf_init and thus must be freed with @ref mem_drop
-/// You can just use raw pointer type if you want
-#define membuf_tt(Type) Type*
-
 /// @brief Init buffer
 /// @param[in,out] p_buf Reference to a pointer for buffer
 /// @param[in] elemsize Size of element size
-/// The `*p_ptr` must either be NULL, or a memory previously initialized with @ref membuf_init
+/// @note The `*p_ptr` must either be NULL, or a memory previously initialized with @ref membuf_init
 MEMMAN_API void membuf_init(void** p_buf, size_t elemsize);
 
 /// @brief Drop buffer
@@ -221,13 +228,13 @@ MEMMAN_API void membuf_shrink_to_fit(void** p_buf);
 /// @}
 
 /// @addtogroup memstr
-/// Function family for string memory manupulation
-/// All function starts with `memstr_` prefix must apply to the memory initialized with @ref memstr_init and be released with @ref memstr_drop
+/// @brief Function family for string memory manupulation
+/// @note All functions starting with `memstr_` prefix must apply to the memory initialized with @ref memstr_init and released with @ref memstr_drop
 
 /// @{
 /// @brief Init string
 /// @param[in,out] p_str Reference to a pointer for pointer
-/// The `*p_str` must either be NULL, or a string previously initialized with @ref memstr_init
+/// @note The `*p_str` must either be NULL, or a string previously initialized with @ref memstr_init
 MEMMAN_API void memstr_init(char** p_str);
 
 /// @brief Drop string
@@ -284,8 +291,6 @@ MEMMAN_API void memstr_reduce(char** p_str, size_t len);
 #ifndef min
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #endif // !min
-
-#define defer(...) for(int _i = 0; _i == 0; ++_i, (__VA_ARGS__))
 
 #define ptr2head(ptr) ((size_t*) (ptr) - 1)
 
@@ -415,6 +420,7 @@ void mem_transfer(void** p_dst, size_t dst_idx, void** p_src, size_t src_idx, si
     assert(p_dst && *p_dst);
     assert(p_src && *p_src);
     assert(*p_dst != *p_src && "Use mem_shift for operations on a single memory");
+    assert(src_idx + size <= mem_size(*p_src) && "Source values out of range");
 
     if(size == 0)
         return;
@@ -422,9 +428,11 @@ void mem_transfer(void** p_dst, size_t dst_idx, void** p_src, size_t src_idx, si
     uint8_t* dst = *p_dst;
     uint8_t* src = *p_src;
 
+    size_t dst_remaining_size = mem_size(dst) - dst_idx;
     size_t extend_size = size;
     if(!(flag & MEM_DISPLACE))
-        extend_size -= mem_size(dst) - dst_idx;
+        extend_size = size < dst_remaining_size ? 0 : size - dst_remaining_size;
+
     if(extend_size > 0)
     {
         mem_extend_back(&dst, extend_size);
@@ -432,7 +440,7 @@ void mem_transfer(void** p_dst, size_t dst_idx, void** p_src, size_t src_idx, si
     }
 
     if(flag & MEM_DISPLACE)
-        (void) memcpy(dst + dst_idx, dst + dst_idx + size, size);
+        (void) memcpy(dst + dst_idx + size, dst + dst_idx, dst_remaining_size);
 
     (void) memcpy(dst + dst_idx, src + src_idx, size);
 
@@ -443,8 +451,9 @@ void mem_transfer(void** p_dst, size_t dst_idx, void** p_src, size_t src_idx, si
 void mem_shift(void** p_ptr, size_t dst_idx, size_t src_idx, size_t size, mem_flag_t flag)
 {
     assert(p_ptr && *p_ptr);
+    assert(src_idx + size <= mem_size(*p_ptr) && "Source values out of range");
 
-    if(size == 0 && dst_idx == src_idx)
+    if(size == 0 || dst_idx == src_idx)
         return;
 
     uint8_t* ptr = *p_ptr;
@@ -456,14 +465,14 @@ void mem_shift(void** p_ptr, size_t dst_idx, size_t src_idx, size_t size, mem_fl
         if(dst_idx > src_idx)
         {
             tmp_size = dst_idx - src_idx;
-            tmp_src = ptr + dst_idx;
+            tmp_src = ptr + src_idx + size;
             tmp_dst = ptr + src_idx;
         }
         else
         {
             tmp_size = src_idx - dst_idx;
-            tmp_src = ptr + src_idx;
-            tmp_dst = ptr + dst_idx;
+            tmp_src = ptr + dst_idx;
+            tmp_dst = ptr + dst_idx + size;
         }
 
         void* tmp = NULL;
@@ -475,17 +484,18 @@ void mem_shift(void** p_ptr, size_t dst_idx, size_t src_idx, size_t size, mem_fl
         return;
     }
 
-    size_t extend_size = dst_idx + size - mem_size(ptr);
+    size_t dst_remaining_size = mem_size(ptr) - dst_idx;
+    size_t extend_size = size < dst_remaining_size ? 0 : size - dst_remaining_size;
     if(extend_size > 0)
     {
         mem_extend_back(&ptr, extend_size);
         *p_ptr = ptr;
     }
 
+    (void) memmove(ptr + dst_idx, ptr + src_idx, size);
     if(flag & MEM_MOVE)
     {
-        (void) memmove(ptr + dst_idx, ptr + src_idx, size);
-        (void) memset(ptr + src_idx, 0, size);
+        (void) memset(ptr + src_idx, 0, dst_idx > src_idx ? dst_idx - src_idx : src_idx - dst_idx);
     }
 }
 

@@ -27,8 +27,19 @@ int main()
         printf("%s\n", (const char*) p);
         printf("Size of memory after making string: %zu\n", mem_size(p));
 
-        mem_init(&p, 0);
+        mem_init(&p, 4);
         printf("Size of memory after re-init: %zu\n", mem_size(p));
+
+        (void) memset(p, 69, mem_size(p));
+
+        void* p2 = NULL;
+        mem_init(&p2, 20);
+
+        (void) memset(p2, 42, mem_size(p2));
+
+        mem_transfer(&p, 0, &p2, 8, 10, MEM_MOVE | MEM_DISPLACE);
+
+        mem_drop(&p2);
         mem_drop(&p);
     }
 
