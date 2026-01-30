@@ -62,7 +62,7 @@ int main()
         membuf_erase(&buf, 0);
         struct test_struct* elem = membuf_at(buf, 0);
         printf("Tss[0]: i = %d, f = %f\n", elem->i, elem->f);
-        elem = membuf_at(&buf, 1);
+        elem = membuf_at(buf, 1);
         assert(elem == NULL);
 
         printf("Size of buffer memory: %zu, capacity: %zu\n", membuf_size(buf), membuf_capacity(buf));
