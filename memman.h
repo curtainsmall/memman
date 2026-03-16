@@ -287,6 +287,7 @@ MEMMAN_API void memstr_reduce(char** p_str, size_t len);
 #include <stdarg.h>
 #include <memory.h>
 #include <inttypes.h>
+#include <stdio.h>
 #include <string.h>
 
 #ifndef max

@@ -1,7 +1,7 @@
-#include <stdio.h>
-
 #define MEMMAN_IMPLEMENT
 #include "memman.h"
+
+#include <stdio.h>
 
 struct test_struct
 {
