@@ -24,3 +24,11 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES "memman.h" "memman.hpp")
 if(MEMMAN_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
+
+find_package(Doxygen)
+
+if(Doxygen_FOUND)
+  set(DOXYGEN_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/doc")
+  doxygen_add_docs(memman_doc ${CMAKE_CURRENT_SOURCE_DIR} ALL)
+  set_target_properties(memman_doc PROPERTIES FOLDER "memman")
+endif()

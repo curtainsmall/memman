@@ -9,10 +9,24 @@
 
 #include <stdint.h>
 
+/// @mainpage memman
+/// This is a tiny single-header library for simple memory manupulation with functions provided in standard library
+///
+/// Usage:
+/// - Include this header for declarations.
+/// - Include this header with #define MEMMAN_IMPLEMENT before the #include derivative in one and only one source file for definations
+///
+/// Function families:
+/// - @ref mem
+/// - @ref membuf
+/// - @ref memstr
+/// - @ref memerr
+
 /// @addtogroup memerr
-/// Error handling
-/// The memman library itself does not raise any runtime error. The only possible runtime error is "out of memory" which is an OS error, in which case the callback of type @ref memerr_callback_t is called. The default callback behavior is to print error message to @a stderr and call `about()`. You can set your own callback if you can recover from such situation. If you succeed to recover from the error, just return the callback and memman will try to allocate again; If you fail to recover the error, you should abort the program manully.
-/// All possible logic errors in memman are checked with @a assert in operation functions. You can and should always check before operate
+/// @brief Error handling
+/// @details The memman library itself does not raise any runtime error. The only possible runtime error is "out of memory" which is an OS error, in which case the callback of type @ref memerr_callback_t is called. The default callback behavior is to print error message to @a stderr and call `about()`. You can set your own callback if you can recover from such situation. If you succeed to recover from the error, just return the callback and memman will try to allocate again; If you fail to recover the error, you should abort the program manully.
+///
+/// All possible logic errors in memman are checked with @a assert in operation functions. You can and should always check before operate.
 
 /// @{
 /// @brief Error callback type
@@ -27,27 +41,24 @@ MEMMAN_API void memerr_set_callback(memerr_callback_t callback, void* userdata);
 /// @}
 
 /// @addtogroup mem
-/// Function family for raw memory manupulation
-/// All function starts with `mem_` prefix must apply to the memory initialized with @ref mem_init and be released with @ref mem_drop
+/// @brief Function family for raw memory manupulation.
+/// @note All functions starting with `mem_` prefix must apply to the memory initialized with @ref mem_init and released with @ref mem_drop.
 
 /// @{
-/// @brief A help marker which represents that this variable is allocated with @ref mem_init and thus must be freed with @ref mem_drop
-/// You can just use raw pointer type if you want
-#define mem_tt(Type) Type*
-
+/// @brief Flags
 typedef enum mem_flag
 {
-    /// @brief Use function-specific default flag
     MEM_DEFAULT = 0,
-    
+
     MEM_MOVE = 1 << 0,
     MEM_DISPLACE = 1 << 1,
 } mem_flag_t;
 
 /// @brief Init memory
 /// @param[in,out] p_ptr Reference to a pointer for the memory
-/// The `*p_ptr` must either be NULL, or a memory previously initialized with @ref mem_init
-MEMMAN_API void mem_init(void** p_ptr);
+/// @param[in] init_size Init size
+/// @note The `*p_ptr` must either be NULL, or a memory previously initialized with @ref mem_init
+MEMMAN_API void mem_init(void** p_ptr, size_t init_size);
 
 /// @brief Drop decorated memory
 /// @param[in] p_ptr Reference to the memory
@@ -57,6 +68,11 @@ MEMMAN_API void mem_drop(void** p_ptr);
 /// @param[in] ptr Memory
 /// @return Size
 MEMMAN_API size_t mem_size(void* ptr);
+
+/// @brief Resize the memory
+/// @param[in,out] p_buf Memmory
+/// @param[in] size New size
+MEMMAN_API void mem_resize(void** p_buf, size_t size);
 
 /// @brief Extend memory after the end of the memory
 /// @param[in,out] p_ptr Reference to the memory
@@ -79,24 +95,24 @@ MEMMAN_API void mem_shrink_back(void** p_ptr, size_t size);
 MEMMAN_API void mem_shrink_front(void** p_ptr, size_t size);
 
 /// @brief Transfer values across two memories
-/// @param[in,out] p_dst Reference to destination memory
+/// @param[in,out] p_dst Reference to the destination memory
 /// @param[in] dst_idx Index of start position in destination
-/// @param[in,out] p_src Reference to source memory
+/// @param[in,out] p_src Reference to the source memory
 /// @param[in] src_idx Index of start position in source
 /// @param[in] size Size of values
 /// @param[in] flag Flags:
-/// @ref MEM_MOVE Zero out the original values; the default behavior is to leave the original values as is
-/// @ref MEM_DISPLACE Displace the target values towards the end; the default behavior is to overwrite the target values
+/// - @ref MEM_MOVE Zero out the original values; the default behavior is to leave the original values as is
+/// - @ref MEM_DISPLACE Displace the target values towards the end; the default behavior is to overwrite the target values
 MEMMAN_API void mem_transfer(void** p_dst, size_t dst_idx, void** p_src, size_t src_idx, size_t size, mem_flag_t flag);
 
-/// @brief Shift values across two memories
+/// @brief Shift values in one memory
 /// @param[in,out] p_ptr Reference to the memory
 /// @param[in] dst_idx Index of start position of destination
 /// @param[in] src_idx Index of start position of source
 /// @param[in] size Size of values
 /// @param[in] flag Flags
-/// @ref MEM_MOVE Zero out the original values; the default behavior is to leave the original values as is
-/// @ref MEM_DISPLACE Displace the values at target position towards the end; the default behavior is to overwrite 
+/// - @ref MEM_MOVE Zero out the original values; the default behavior is to leave the original values as is
+/// - @ref MEM_DISPLACE Displace the values at target position towards the opposite direction of the shift; the default behavior is to overwrite
 MEMMAN_API void mem_shift(void** p_ptr, size_t dst_idx, size_t src_idx, size_t size, mem_flag_t flag);
 
 /// @brief Make formatted string to memory
@@ -116,18 +132,14 @@ MEMMAN_API void mem_make_str_v(void** p_ptr, const char* fmt, va_list va);
 /// @}
 
 /// @addtogroup membuf
-/// Function family for buffer memory manupulation
-/// All function starts with `membuf_` prefix must apply to the memory initialized with @ref membuf_init and be released with @ref membuf_drop
+/// @brief Function family for buffer memory manupulation
+/// @note All functions starting with `membuf_` prefix must apply to the memory initialized with @ref membuf_init and released with @ref membuf_drop
 
 /// @{
-/// @brief A help marker which represents that this variable is allocated with @ref membuf_init and thus must be freed with @ref mem_drop
-/// You can just use raw pointer type if you want
-#define membuf_tt(Type) Type*
-
 /// @brief Init buffer
 /// @param[in,out] p_buf Reference to a pointer for buffer
 /// @param[in] elemsize Size of element size
-/// The `*p_ptr` must either be NULL, or a memory previously initialized with @ref membuf_init
+/// @note The `*p_ptr` must either be NULL, or a memory previously initialized with @ref membuf_init
 MEMMAN_API void membuf_init(void** p_buf, size_t elemsize);
 
 /// @brief Drop buffer
@@ -221,14 +233,13 @@ MEMMAN_API void membuf_shrink_to_fit(void** p_buf);
 /// @}
 
 /// @addtogroup memstr
-/// Function family for string memory manupulation
-/// All function starts with `memstr_` prefix must apply to the memory initialized with @ref memstr_init and be released with @ref memstr_drop
+/// @brief Function family for string memory manupulation
+/// @note All functions starting with `memstr_` prefix must apply to the memory initialized with @ref memstr_init and released with @ref memstr_drop
 
 /// @{
-
 /// @brief Init string
 /// @param[in,out] p_str Reference to a pointer for pointer
-/// The `*p_str` must either be NULL, or a string previously initialized with @ref memstr_init
+/// @note The `*p_str` must either be NULL, or a string previously initialized with @ref memstr_init
 MEMMAN_API void memstr_init(char** p_str);
 
 /// @brief Drop string
@@ -256,6 +267,16 @@ MEMMAN_API void memstr_append(char** p_str, const char* fmt, ...);
 /// @param[in] fmt Format
 /// @param[in] va Arguemnts
 MEMMAN_API void memstr_append_v(char** p_str, const char* fmt, va_list va);
+
+/// @brief Append a single character to current string
+/// @param[in,out] p_str Reference to string
+/// @param[in] c Character
+MEMMAN_API void memstr_append_char(char** p_str, char c);
+
+/// @brief Reduce @a len characters from current string
+/// @param[in,out] p_str Reference to string
+/// @param[in] len Length
+MEMMAN_API void memstr_reduce(char** p_str, size_t len);
 
 /// @}
 
@@ -320,7 +341,7 @@ static void acquire(void** p_ptr, size_t new_size)
     }
 
     if(new_size > old_size)
-        (void) memset((uint8_t*) ptr + old_size, 0, new_size - old_size);
+        (void) memset(ptr + old_size, 0, new_size - old_size);
 
     *p_ptr = ptr;
 }
@@ -359,6 +380,13 @@ size_t mem_size(void* ptr)
     assert(ptr);
 
     return *ptr2head(ptr);
+}
+
+void mem_resize(void** p_buf, size_t size)
+{
+    assert(p_buf);
+
+    acquire(p_buf, size);
 }
 
 void mem_extend_back(void** p_ptr, size_t size)
@@ -404,6 +432,7 @@ void mem_transfer(void** p_dst, size_t dst_idx, void** p_src, size_t src_idx, si
     assert(p_dst && *p_dst);
     assert(p_src && *p_src);
     assert(*p_dst != *p_src && "Use mem_shift for operations on a single memory");
+    assert(src_idx + size <= mem_size(*p_src) && "Source values out of range");
 
     if(size == 0)
         return;
@@ -411,9 +440,11 @@ void mem_transfer(void** p_dst, size_t dst_idx, void** p_src, size_t src_idx, si
     uint8_t* dst = *p_dst;
     uint8_t* src = *p_src;
 
+    size_t dst_remaining_size = mem_size(dst) - dst_idx;
     size_t extend_size = size;
     if(!(flag & MEM_DISPLACE))
-        extend_size -= mem_size(dst) - dst_idx;
+        extend_size = size < dst_remaining_size ? 0 : size - dst_remaining_size;
+
     if(extend_size > 0)
     {
         mem_extend_back(&dst, extend_size);
@@ -421,20 +452,20 @@ void mem_transfer(void** p_dst, size_t dst_idx, void** p_src, size_t src_idx, si
     }
 
     if(flag & MEM_DISPLACE)
-        (void) memcpy(dst + dst_idx, dst + dst_idx + size, size);
+        (void) memcpy(dst + dst_idx + size, dst + dst_idx, dst_remaining_size);
 
     (void) memcpy(dst + dst_idx, src + src_idx, size);
 
     if(flag & MEM_MOVE)
         (void) memset(src + src_idx, 0, size);
-
 }
 
 void mem_shift(void** p_ptr, size_t dst_idx, size_t src_idx, size_t size, mem_flag_t flag)
 {
     assert(p_ptr && *p_ptr);
+    assert(src_idx + size <= mem_size(*p_ptr) && "Source values out of range");
 
-    if(size == 0 && dst_idx == src_idx)
+    if(size == 0 || dst_idx == src_idx)
         return;
 
     uint8_t* ptr = *p_ptr;
@@ -446,14 +477,14 @@ void mem_shift(void** p_ptr, size_t dst_idx, size_t src_idx, size_t size, mem_fl
         if(dst_idx > src_idx)
         {
             tmp_size = dst_idx - src_idx;
-            tmp_src = ptr + dst_idx;
+            tmp_src = ptr + src_idx + size;
             tmp_dst = ptr + src_idx;
         }
         else
         {
             tmp_size = src_idx - dst_idx;
-            tmp_src = ptr + src_idx;
-            tmp_dst = ptr + dst_idx;
+            tmp_src = ptr + dst_idx;
+            tmp_dst = ptr + dst_idx + size;
         }
 
         void* tmp = NULL;
@@ -465,19 +496,19 @@ void mem_shift(void** p_ptr, size_t dst_idx, size_t src_idx, size_t size, mem_fl
         return;
     }
 
-    size_t extend_size = dst_idx + size - mem_size(ptr);
+    size_t dst_remaining_size = mem_size(ptr) - dst_idx;
+    size_t extend_size = size < dst_remaining_size ? 0 : size - dst_remaining_size;
     if(extend_size > 0)
     {
         mem_extend_back(&ptr, extend_size);
         *p_ptr = ptr;
     }
 
+    (void) memmove(ptr + dst_idx, ptr + src_idx, size);
     if(flag & MEM_MOVE)
     {
-        (void) memmove(ptr + dst_idx, ptr + src_idx, size);
-        (void) memset(ptr + src_idx, 0, size);
+        (void) memset(ptr + src_idx, 0, dst_idx > src_idx ? dst_idx - src_idx : src_idx - dst_idx);
     }
-
 }
 
 void mem_make_str(void** p_ptr, const char* fmt, ...)
@@ -512,32 +543,21 @@ static intmax_t rel2abs(intmax_t idx, size_t count)
     return (idx %= count) < 0 ? idx + count : idx;
 }
 
-#define bufinfocount_v (2)
-#define bufinfosize_v (bufinfocount_v * sizeof(size_t))
-#define buf2ptr(buf) ((size_t*)(buf) - bufinfocount_v)
-#define ptr2buf(ptr) ((size_t*)(ptr) + bufinfocount_v)
-#define bufsize(buf) (mem_size(buf2ptr(buf)))
-#define bufelemsize(buf) (*buf2ptr(buf))
-#define bufvaluesize(buf) (*((size_t*)(buf) - 1))
+#ifndef MEMBUF_DEFAULT_CAPACITY
+#define MEMBUF_DEFAULT_CAPACITY 8
+#endif // !MEMBUF_DEFAULT_CAPACITY
 
-static void bufacquire(void** p_buf, size_t new_size)
-{
-    assert(p_buf && *p_buf);
-
-    void* buf = *p_buf;
-    buf = buf2ptr(buf);
-    acquire(&buf, new_size + bufinfosize_v);
-    *p_buf = (size_t*) buf + bufinfocount_v;
-}
+#define bufinfosize_v (2 * sizeof(size_t))
+#define bufsize(buf) (mem_size(buf) - bufinfosize_v)
+#define bufinfo(buf) ((uint8_t*)(buf) + bufsize(buf))
+#define bufelemsize(buf) (*bufinfo(buf))
+#define bufvaluesize(buf) (*(bufinfo(buf) + sizeof(size_t)))
 
 void membuf_init(void** p_buf, size_t elemsize)
 {
     assert(p_buf);
 
-    size_t* ptr = NULL;
-    mem_init(&ptr, bufinfosize_v);
-    *p_buf = ptr2buf(ptr);
-
+    mem_init(p_buf, bufinfosize_v);
     bufelemsize(*p_buf) = elemsize;
 }
 
@@ -545,11 +565,7 @@ void membuf_drop(void** p_buf)
 {
     assert(p_buf);
 
-    if(!*p_buf)
-        return;
-
-    mem_drop(&(void*) { buf2ptr(*p_buf) });
-    *p_buf = NULL;
+    mem_drop(p_buf);
 }
 
 void membuf_clear(void** p_buf)
@@ -568,7 +584,7 @@ size_t membuf_size(void* buf)
 {
     assert(buf);
 
-    return mem_size(buf2ptr(buf)) - bufinfosize_v;
+    return mem_size(buf) - bufinfosize_v;
 }
 
 size_t membuf_capacity(void* buf)
@@ -604,17 +620,22 @@ void membuf_insert_n(void** p_buf, size_t idx, void* val, size_t count)
     uint8_t* buf = *p_buf;
 
     size_t value_size = bufvaluesize(buf);
-    size_t extend_size = value_size + count * bufelemsize(buf) - bufsize(buf);
-    size_t offset = idx * bufelemsize(buf);
     size_t inserted_size = bufelemsize(buf) * count;
+    size_t value_size_wanted = value_size + inserted_size;
+    size_t old_size = bufsize(buf);
 
-    if(extend_size > 0)
+    if(value_size_wanted >= old_size)
     {
-        void* ptr = buf2ptr(buf);
-        mem_extend_back(&ptr,  max(extend_size, value_size * 2));
-        *p_buf = buf = ptr2buf(ptr);
+        size_t new_size = old_size > 0 ? old_size * 2 : MEMBUF_DEFAULT_CAPACITY * bufelemsize(buf);
+        while(value_size_wanted > new_size)
+            new_size *= 2;
+        mem_resize(&buf, new_size + bufinfosize_v);
+        (void) memmove(buf + new_size, buf + old_size, bufinfosize_v);
+        (void) memset(buf + old_size, 0, bufinfosize_v);
+        *p_buf = buf;
     }
 
+    size_t offset = idx * bufelemsize(buf);
     uint8_t* target_pos = buf + offset;
     (void) memmove(target_pos + inserted_size, target_pos, value_size - offset);
     (void) memcpy(target_pos, val, inserted_size);
@@ -639,7 +660,7 @@ void membuf_insert_back(void** p_buf, void* val)
 void membuf_erase_n(void** p_buf, size_t idx, size_t count)
 {
     assert(p_buf && *p_buf);
-    assert(count <= INTMAX_MAX);
+    assert(bufvaluesize(*p_buf) > 0);
     assert(count <= membuf_value_count(*p_buf));
 
     if(count == 0)
@@ -656,11 +677,15 @@ void membuf_erase_n(void** p_buf, size_t idx, size_t count)
     (void) memset(target_pos + moved_size, 0, erased_size);
     bufvaluesize(buf) -= erased_size;
 
+    size_t old_size = bufsize(buf);
     size_t value_size_wanted = bufvaluesize(buf);
-    if(value_size_wanted * 2 < value_size)
+    if(value_size_wanted < old_size / 2)
     {
-        value_size = min(value_size_wanted, value_size / 2);
-        bufacquire(&buf, value_size);
+        size_t new_size = old_size / 2;
+        while(value_size_wanted < new_size / 2)
+            new_size /= 2;
+        (void) memmove(buf + new_size, buf + old_size, bufinfosize_v);
+        mem_resize(&buf, new_size + bufinfosize_v);
         *p_buf = buf;
     }
 }
@@ -697,9 +722,12 @@ void membuf_reserve(void** p_buf, size_t new_cap)
     uint8_t* buf = *p_buf;
 
     size_t size_wanted = new_cap * bufelemsize(buf);
-    if(bufsize(buf) < size_wanted)
+    size_t old_size = bufsize(buf);
+    if(size_wanted > old_size)
     {
-        bufacquire(&buf, size_wanted);
+        mem_resize(&buf, size_wanted + bufinfosize_v);
+        (void) memmove(buf + size_wanted, buf + old_size, bufinfosize_v);
+        (void) memset(buf + old_size, 0, bufinfosize_v);
         *p_buf = buf;
     }
 }
@@ -708,37 +736,40 @@ void membuf_shrink_to_fit(void** p_buf)
 {
     assert(p_buf && *p_buf);
 
-    bufacquire(p_buf, bufvaluesize(*p_buf));
+    uint8_t* buf = *p_buf;
+
+    (void) memmove(buf + bufvaluesize(buf), buf + bufsize(buf), bufinfosize_v);
+    mem_resize(&buf, bufvaluesize(buf) + bufinfosize_v);
 }
 
-#define strinfocount_v (1)
-#define strinfosize_v (strinfocount_v * sizeof(size_t))
-#define str2ptr(str) ((size_t*)(str) - strinfocount_v)
-#define ptr2str(ptr) ((size_t*)(ptr) + strinfocount_v)
-#define strcount(str) (*str2ptr(str))
+#ifndef MEMSTR_EXTEND_STEP
+#define MEMSTR_EXTEND_STEP 8
+#endif // !MEMSTR_EXTEND_STEP
+
+#define strinfosize_v (sizeof(char) + sizeof(size_t)) // Null-terminator included
+#define strsize(str) (mem_size(str) - strinfosize_v)
+#define strinfo(str) ((uint8_t*)(str) + strsize(str))
+#define strcount(str) (*(strinfo(str) + sizeof(char)))
 
 void memstr_init(char** p_str)
 {
     assert(p_str);
 
-    acquire(p_str, strinfosize_v + 1);
-    **p_str = 0;
-    *p_str = (size_t*) (*p_str) + strinfocount_v;
+    mem_init(p_str, strinfosize_v);
 }
 
 void memstr_drop(char** p_str)
 {
     assert(p_str);
 
-    release(str2ptr(*p_str));
-    *p_str = NULL;
+    mem_drop(p_str);
 }
 
 size_t memstr_size(const char* str)
 {
     assert(str);
 
-    return mem_size(str2ptr(str)) - strinfosize_v;
+    return strsize(str);
 }
 
 size_t memstr_len(const char* str)
@@ -764,16 +795,70 @@ void memstr_append_v(char** p_str, const char* fmt, va_list va)
 
     va_list va_tmp;
     va_copy(va_tmp, va);
-    int len = vsnprintf(NULL, 0, fmt, va_tmp);
+    int extend_len = vsnprintf(NULL, 0, fmt, va_tmp);
     va_end(va_tmp);
 
-    size_t old_len = memstr_len(*p_str);
-    size_t* ptr = ptr2head(*p_str);
-    mem_extend_back(&ptr, len);
-    *p_str = ptr2str(ptr);
-    strcount(*p_str) = mem_size(ptr) - strinfosize_v - 1;
+    char* str = *p_str;
+    size_t old_size = strsize(str);
+    size_t new_size = old_size + extend_len;
 
-    (void) vsnprintf((char*)(*p_str) + old_len, len + 1, fmt, va);
+    mem_resize(&str, new_size + strinfosize_v);
+    (void) memmove(str + new_size, str + old_size, strinfosize_v);
+    (void) memset(str + old_size, 0, strinfosize_v);
+
+    (void) vsnprintf(str + strcount(str), extend_len + 1, fmt, va);
+    strcount(str) += extend_len;
+
+    *p_str = str;
+}
+
+void memstr_append_char(char** p_str, char c)
+{
+    assert(p_str && *p_str);
+
+    char* str = *p_str;
+    size_t old_len = strcount(*p_str);
+    size_t old_size = strsize(str);
+
+    if(old_len + 1 >= strsize(str))
+    {
+        size_t new_size = old_size + MEMSTR_EXTEND_STEP * sizeof(char);
+        mem_resize(&str, new_size + strinfosize_v);
+        (void) memmove(str + new_size, str + old_size, strinfosize_v);
+        (void) memset(str + old_size, 0, strinfosize_v);
+        *p_str = str;
+    }
+
+    str[old_len] = c;
+    strcount(str) += 1;
+}
+
+void memstr_reduce(char** p_str, size_t len)
+{
+    assert(p_str && *p_str);
+
+    if(len == 0)
+        return;
+
+    char* str = *p_str;
+    assert(len <= strcount(str));
+
+    size_t old_len = strcount(str);
+    size_t len_wanted = old_len - len;
+    size_t old_size = strsize(str);
+
+    strcount(str) -= len;
+    (void) memset(str + strcount(str), 0, len);
+
+    if(len_wanted < old_size / 2)
+    {
+        size_t new_size = old_size / 2;
+        while(len_wanted < new_size / 2)
+            new_size /= 2;
+        (void) memmove(str + new_size, str + old_size, strinfosize_v);
+        mem_resize(&str, new_size + strinfosize_v);
+        *p_str = str;
+    }
 }
 
 #endif // MEMMAN_IMPLEMENT

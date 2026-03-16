@@ -27,8 +27,19 @@ int main()
         printf("%s\n", (const char*) p);
         printf("Size of memory after making string: %zu\n", mem_size(p));
 
-        mem_init(&p, 0);
+        mem_init(&p, 4);
         printf("Size of memory after re-init: %zu\n", mem_size(p));
+
+        (void) memset(p, 69, mem_size(p));
+
+        void* p2 = NULL;
+        mem_init(&p2, 20);
+
+        (void) memset(p2, 42, mem_size(p2));
+
+        mem_transfer(&p, 0, &p2, 8, 10, MEM_MOVE | MEM_DISPLACE);
+
+        mem_drop(&p2);
         mem_drop(&p);
     }
 
@@ -51,7 +62,7 @@ int main()
         membuf_erase(&buf, 0);
         struct test_struct* elem = membuf_at(buf, 0);
         printf("Tss[0]: i = %d, f = %f\n", elem->i, elem->f);
-        elem = membuf_at(&buf, 1);
+        elem = membuf_at(buf, 1);
         assert(elem == NULL);
 
         printf("Size of buffer memory: %zu, capacity: %zu\n", membuf_size(buf), membuf_capacity(buf));
@@ -73,6 +84,11 @@ int main()
         memstr_append(&str, "A test string at address %p\n", str);
         printf(str);
         memstr_append(&str, "Another test string\n");
+        memstr_append_char(&str, 'Y');
+        memstr_append_char(&str, '\n');
+        printf(str);
+
+        memstr_reduce(&str, 10);
         printf(str);
 
         memstr_drop(&str);
