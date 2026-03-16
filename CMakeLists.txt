@@ -19,7 +19,7 @@ add_library(memman INTERFACE "memman.h" "memman.hpp")
 target_compile_features(memman INTERFACE c_std_99)
 target_include_directories(memman INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
 set_target_properties(memman PROPERTIES FOLDER "memman")
-source_group(TREE "${CMAKE_SOURCE_DIR}" FILES "memman.h" "memman.hpp")
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES "memman.h" "memman.hpp")
 
 if(MEMMAN_BUILD_TESTS)
     add_subdirectory(tests)
